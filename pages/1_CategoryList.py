@@ -34,7 +34,6 @@ sort_column_map = {
     "Shorts 비율": short_ratio
 }
 
-
 #=================== Page 랜더링 =====================
 
 
@@ -71,14 +70,36 @@ with main :
     for tab, category in zip(tabs, categories):
         with tab:
             col1, col2 = st.columns([4, 1])
-            col1.subheader("Youtuber List")
+            # 여기에 카테고리 필터링 결과 개수 반환
+            if category == "전체":
+                filtered_ids = list(channel_meta.keys())
+            else:
+                filtered_ids = [
+                cid 
+                for cid, meta in channel_meta.items() 
+                if meta.get("category", "") == category
+            ]
+            count = len(filtered_ids)
+            col1.metric(label=f"결과 {count}명", value="Youtuber List")
+            # col1.html(f"""
+            #         <style>
+            #             div{{margin: 5px 0px 0 0;}}
+            #             h1{{display: inline;}}
+            #             p{{display: inline; color: #666;}}
+            #         </style>
+            #         <div><h1>Youtuber List</h1> <p>{count}명</p></div>
+            #         """)
             with col2 :
                 sort_key = st.selectbox(
                     "정렬 기준", ["구독자순", "구독자 급상승", "평균 조회수", "Shorts 비율"],
-                    key=f"sort_{category}"
+                    key=f"sort_{category}",
+                    index=1
                     )
-            
             sort_series = sort_column_map[sort_key].sort_values(ascending=False)
+
+            
+            # 4) 결과 개수 함께 출력
+            
             render_channels_for(category)
 
 
