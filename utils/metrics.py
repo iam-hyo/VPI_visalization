@@ -83,7 +83,7 @@ def get_subscriber_metrics(df: pd.DataFrame, days: int = 10): #10일 이내 구�
     recent = df[df['timestamp'] >= cutoff]
 
     if len(recent) < 2:
-        return 0.0, 0
+        return 0.0, 0.0, 0, 0
     first, start, end = df['subscriber_count'].iloc[0], recent['subscriber_count'].iloc[0], recent['subscriber_count'].iloc[-1]
     
     actual_days = (recent['timestamp'].iloc[-1] - recent['timestamp'].iloc[0]).total_seconds() / (3600 * 24)
@@ -118,13 +118,6 @@ def avg_view_by_days_since_published(
         df = df[df['is_short'] == True]
     elif is_short is False:
         df = df[df['is_short'] == False]
-
-    # 5) 빈 경우 기본 테이블 생성
-    # if df.empty:
-    #     return pd.DataFrame({
-    #         'day': list(range(1, max_days + 1)),
-    #         'avg_view_count': [0.0] * max_days
-    #     })
 
     # 6) (video_id, day)별 snapshot 평균
     grp1 = (
@@ -177,39 +170,6 @@ def avg_views(df: pd.DataFrame, days: int = 10, is_short: bool = None) -> float:
     elif is_short is False:
         recent = filter_longforms(recent)
     return float(recent['view_count'].mean()) if not recent.empty else 0.0
-
-#이동평균, 지금 사용 안함
-def moving_average_views(df: pd.DataFrame, window: Union[int, str] = 3) -> pd.DataFrame:
-    df = df.sort_values('published_at').copy()
-    df['published_at'] = pd.to_datetime(df['published_at'], format='mixed', utc=True, errors='raise').dt.tz_localize(None)
-    df = df.set_index('published_at')
-    df['view_count'] = pd.to_numeric(df['view_count'], errors='coerce')
-    df['ma_view_count'] = df['view_count'].rolling(window, min_periods=1).mean() #window : 이동평균 일 수 / min_periods=1 최소 데이터수 ma = MovingAverage
-    return df.reset_index()[['published_at', 'ma_view_count']]
-
-def calculate_contribution(df: pd.DataFrame) -> pd.DataFrame:
-    # df에 'is_short' 컬럼이 있다고 가정 (롱폼 False, 숏폼 True)
-    df = df.copy()
-    
-    # 1) 롱폼만 필터링해서 전체 뷰 합산
-    long_df = df[~df['is_short']]
-    total_long_views = long_df['view_count'].sum()
-    
-    # 2) 기여도 계산: 롱폼 영상은 view_count/total_long_views, 숏폼은 0
-    def contrib(row):
-        if not row['is_short'] and total_long_views > 0:
-            return row['view_count'] / total_long_views
-        else:
-            return 0.0
-    
-    df['contribution'] = df.apply(contrib, axis=1)
-    
-    return df[['video_id', 'contribution']]
-
-def video_contribution_by_type(df: pd.DataFrame) -> pd.DataFrame:
-    shorts = calculate_contribution(filter_shorts(df)).assign(type='Shorts')
-    longs  = calculate_contribution(filter_longforms(df)).assign(type='Long')
-    return pd.concat([shorts, longs], ignore_index=True)
 
 def get_recent_videos(df: pd.DataFrame, days: int = 10) -> pd.DataFrame: #최근 10일 이내 함수 걷어내는 함수
     cutoff = datetime.now() - timedelta(days=days)

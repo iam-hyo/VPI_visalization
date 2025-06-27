@@ -37,7 +37,7 @@ sort_column_map = {
 #=================== Page 랜더링 =====================
 
 
-non1, main, non2 = st.columns([1, 7, 1])
+non1, main, non2 = st.columns([1, 10, 1])
 with main :
         
     st.metric(value="📺VPI", label="Vido Performence Indicater")
