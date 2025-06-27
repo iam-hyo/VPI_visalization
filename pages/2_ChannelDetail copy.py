@@ -11,7 +11,7 @@ from utils.metrics import (
 )
 from utils.video_gain_index import compute_video_gain_scores, aggregate_views_within_days
 from components.charts import draw_line_chart, draw_pie_chart, render_avg_views_table, render_avg_views_line_chart
-from components.video_card_st import render_video_card ##test메서드
+from components.html_expander import summary_card, detail_expander
 import base64
 import requests
 
@@ -240,19 +240,38 @@ def main():
             #----------------------------------------------------
             # 7) 각 영상 렌더링
             for _, row in update_video.iterrows():
-                vid = row["video_id"]
-                # 해당 영상 전체 스냅샷
-                snapshot_df = ch_df[ch_df["video_id"] == vid].copy()
-                # 올바른 metrics_df 선택
-                metrics_df  = result_S if row["is_short"] else result_L
+                # 기존 요약용 값들
+                views_str      = f"{row.view_count:,}회"
+                pub_str        = row.published_at_dt.strftime("%Y-%m-%d")
+                badge          = "Shorts" if row.is_short else "Long-form"
 
-                # 불필요: views_str, pub_str, badge, st.markdown Score → 삭제
+                # summary_card 호출
+                summary_card(
+                    thumbnail_url  = row.thumbnail_url,
+                    title          = row.video_title,
+                    badge          = badge,
+                    views_str      = views_str,
+                    pub_str        = pub_str,
+                    days_since_pub = row.day_since_pub,
+                    expected_str   = int(row.expected_views) 
+                )
 
-                render_video_card(
-                    row=           row,
-                    snapshot_df=   snapshot_df,
-                    metrics_df=    metrics_df
-    )
+                # ↳ 요약 카드 하단에 Gain Score 출력
+                score = row['gain_score']
+                st.markdown(f"**Gain Score:** {score:.2f}")
+
+                # 기존 Detail Expander
+                vid = row['video_id']
+                video_snapshots = ch_df[ch_df['video_id'] == vid].copy()
+                metrics_df = result_S if row['is_short'] else result_L
+
+                detail_expander(
+                    snapshot_df   = video_snapshots,
+                    metrics_df    = metrics_df,
+                    video_id      = vid,
+                    like_count    = row.get('like_count'),
+                    comment_count = row.get('comment_count'),
+                )
 
 if __name__ == "__main__":
     main()
