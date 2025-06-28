@@ -141,14 +141,17 @@ def avg_view_by_days_since_published(
     result = all_days.merge(grp2, on='day', how='left')
 
     # 누락값 보간 & 앞뒤 채우기
-    arr = (
-        result['avg_view_count']
-              .interpolate(method='linear')        # 앞뒤 평균
-              .fillna(method='bfill')              # 맨 앞날이 없으면 다음날 값으로
-              .fillna(method='ffill')              # 맨 뒷날이 없으면 이전날 값으로
-              .replace([np.inf, -np.inf], np.nan)
-              .fillna(0)
+    result['avg_view_count'] = (
+    result['avg_view_count']
+        .interpolate(method='linear')
+        .bfill()
+        .ffill()
+        .fillna(0)
+        .round(0)
+        .astype(int)
     )
+
+    arr = result['avg_view_count']
     result['avg_view_count'] = arr.round(0).astype(int)
 
     # pivot & 컬럼명 변경

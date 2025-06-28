@@ -33,6 +33,7 @@ def main():
     ch_df = df[df["channel_id"] == channel_id]
     growth, daily_avg, end, start = get_subscriber_metrics(ch_df, 30)
 
+    ch_df = ch_df.copy()
     ch_df['published_at_dt'] = parse_published_at(ch_df['published_at'])
     ch_df['day_since_pub'] = (ch_df['timestamp'] - ch_df['published_at_dt']).dt.days + 1 #공개 후 경과일 계산 (1일 차부터)
 
@@ -246,12 +247,11 @@ def main():
                 # 올바른 metrics_df 선택
                 metrics_df  = result_S if row["is_short"] else result_L
 
-                # 불필요: views_str, pub_str, badge, st.markdown Score → 삭제
-
                 render_video_card(
                     row=           row,
                     snapshot_df=   snapshot_df,
-                    metrics_df=    metrics_df
+                    metrics_df=    metrics_df,
+                    tab_name = tab_name
     )
 
 if __name__ == "__main__":

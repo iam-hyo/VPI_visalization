@@ -7,7 +7,8 @@ import streamlit.components.v1 as components
 def render_video_card(
     row: pd.Series,
     snapshot_df: pd.DataFrame,
-    metrics_df: pd.DataFrame
+    metrics_df: pd.DataFrame,
+    tab_name: str
 ):
     col1, col2, col3 = st.columns([1.5, 4.5, 2])
 
@@ -53,7 +54,7 @@ def render_video_card(
         # st.button으로 “영상 보러가기” → JS로 새 탭 열기
         btn = a3.button(
             "영상 보러가기",
-            key=f"watch-{row['video_id']}"
+            key=f"watch-{row.name}-{tab_name}"
         )
         if btn:
             url = f"https://www.youtube.com/watch?v={row['video_id']}"
@@ -68,11 +69,12 @@ def render_video_card(
                            .rename("actual")
             )
             df_exp = metrics_df.set_index("day")["avg_view_count"].rename("expected")
-            df_plot = pd.concat([df_act, df_exp], axis=1).fillna(method="ffill")
+            df_plot = pd.concat([df_act, df_exp], axis=1).ffill()
             st.line_chart(df_plot, use_container_width=True)
 
     # ─── 3열: 지표 ─────────────────────────
     with col3:
-        st.metric("Gain Index", f"{row.get('gain_index', 0):.2f}")
+        st.metric("Gain Index", f"{row.get('gain_score', 0):.2f}")
         st.metric("Retain Index", f"{row.get('retain_index', 0):.2f}")
         st.caption("Index3 (추후)")
+    st.write("---")
