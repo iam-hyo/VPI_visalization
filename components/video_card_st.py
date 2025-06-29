@@ -74,7 +74,16 @@ def render_video_card(
 
     # ─── 3열: 지표 ─────────────────────────
     with col3:
-        st.metric("Gain Index", f"{row.get('gain_score', 0):.2f}")
-        st.metric("Retain Index", f"{row.get('retain_index', 0):.2f}")
-        st.caption("Index3 (추후)")
+        index0, index1, index2 = st.columns(3)
+        with index0:
+            st.markdown(":blue-badge[응용이 지표]")
+            st.metric("Gain Index", f"{row.get('gain_score', 0):.2f}")
+            retain = row['view_count'] / row['expected_views'] if row['expected_views'] else "-"
+            st.metric("Retain Index", f"{retain:.2f}" if isinstance(retain, (int, float)) else "-")        
+        with index1:
+            st.markdown(":blue-badge[기본이 지표]")
+            
+        with index2:
+            st.markdown(":blue-badge[다중이 지표]")
+
     st.write("---")

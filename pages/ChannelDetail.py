@@ -1,7 +1,6 @@
 # pages/2_ChannelDetail.py
 import streamlit as st
 import pandas as np
-import json
 import streamlit.components.v1 as components
 from streamlit.components.v1 import html
 from utils.data_loader import load_processed_data, load_channel_meta
@@ -9,9 +8,10 @@ from utils.metrics import (
     get_subscriber_metrics, avg_views, 
     avg_view_by_days_since_published, format_korean_count, parse_published_at
 )
-from utils.video_gain_index import compute_video_gain_scores, aggregate_views_within_days
-from components.charts import draw_line_chart, draw_pie_chart, render_avg_views_table, render_avg_views_line_chart
-from components.video_card_st import render_video_card ##test메서드
+from utils.apply_hyojun_index import compute_video_gain_scores, aggregate_views_within_days
+from components.charts import render_avg_views_table, render_avg_views_line_chart
+from components.video_card_st import render_video_card
+from components.channel_nameCard import render_name_card
 import base64
 import requests
 
@@ -37,102 +37,32 @@ def main():
     ch_df['published_at_dt'] = parse_published_at(ch_df['published_at'])
     ch_df['day_since_pub'] = (ch_df['timestamp'] - ch_df['published_at_dt']).dt.days + 1 #공개 후 경과일 계산 (1일 차부터)
 
-    # st.write(end, start, channel_id, growth, daily_avg)
-    profile_url = channel_meta[channel_id]["profile_image"]
-    img_base64 = img_url_to_base64(profile_url)
-
     #==========================UI랜더링=========================
-    NameCard_html = f"""
-    <div class="yt-profile">
-        <img class="channel-img" src="data:image/jpeg;base64,{img_base64}" alt="채널 이미지">
-        <div class="channel-info">
-            <div class=Name-tag>
-                <h2 class="channel-name">{channel_meta[channel_id]["channel_title"]}</h2>
-                <p class="handle">{channel_meta[channel_id]["handle"]}</p>
-                <!--<p class="channel-subs">{ch_df['subscriber_count'].iloc[-1]}</p>-->
-            </div>
-            <p class="category">#{ch_df['category'].iloc[-1]}</p>
-        </div>
-    </div>
-
-    <style>
-
-    .category {{
-        font-size: 15px;
-        width: min-content;
-        color: #444;
-        padding: 4px 10px;
-        background-color: hsla(0, 0%, 20%, 0.2);
-        border-radius: 8px;
-        white-space: nowrap;
-    }}
-
-    .yt-profile {{
-        display: flex;
-        align-items: center;
-        background-color: #f9f9f9;
-        border-radius: 12px;
-        padding: 0px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }}
-
-    .Name-tag{{
-        display: flex;
-        gap: 10px;
-    }}
-    .channel-img {{
-        width: 120px;
-        height: 120px;
-        object-fit: cover;
-        margin-right: 20px;
-        border: 2px solid #ccc;
-        border-radius: 10px;
-    }}
-
-    .channel-info {{
-        flex: 1;
-    }}
-
-    .channel-name {{
-        margin: 0;
-        font-size: 32px;
-        font-weight: bold;
-        color: #222;
-    }}
-
-    .handle {{
-        font-size: 16px;
-        color: #777;
-    }}
-
-    
-    </style>
-    """
-    components.html(NameCard_html, height=160)
+    render_name_card(channel_meta, channel_id, ch_df)
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("구독자 수", f"{end:,}명") 
     with col2:
         st.metric("총 영상 수", f"{channel_meta[channel_id]['video_count']:,}개")
-    totla_view = channel_meta[channel_id]['total_view_count']
-    formated_total_view = format_korean_count(totla_view)
+    total_view = channel_meta[channel_id]['total_view_count']
+    formated_total_view = format_korean_count(total_view)
     with col3:
         st.metric("총 조회수", f"{formated_total_view}회")
     with col4:
         st.metric("구독자 증가수", f"{growth:,}명")
     with col5:
         st.metric("30일 일평균 구독자 증가량", f"{daily_avg:,.1f}명")
-    
-
-    # Shorts vs Long-form 평균 조회수
     st.write("---")
+   
+    # Shorts vs Long-form 평균 조회수
     st.header("영상 통계량👑")
+    st.write(ch_df)
     col1, col2 = st.columns(2)
     with col1: # 롱폼
         long_metrics, result_L = avg_view_by_days_since_published(
             ch_df,
-            max_days=10,
+            max_days=30,
             is_short=False
         )
         
@@ -145,7 +75,7 @@ def main():
         # 숏폼
         short_metrics, result_S = avg_view_by_days_since_published(
             ch_df,
-            max_days=10,
+            max_days=30,
             is_short=True
         )
         st.markdown("#### :blue-badge[Short Form] 공개 이후 평균 조회수")
@@ -154,15 +84,12 @@ def main():
         render_avg_views_line_chart(result_S, "")
     
     #─────────────────────────────────────────────────────────── gainscore 계산 시작
-    # 0) 채널 전체 end_subs, total_views 계산 (10일 이내)
-    views_series = aggregate_views_within_days(ch_df, days=10)      # video_id별 10일 내 조회수 변화량
-
     # 1) per-video Gain Score 계산
     #    반환값: DataFrame with columns ['video_id','gain_score']
     video_gain_df = compute_video_gain_scores(
         channel_df   = ch_df,
         end_subs     = end,
-        total_views  = totla_view,
+        total_views  = total_view,
         c            = 100.0,
         days         = 10
     )

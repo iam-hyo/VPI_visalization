@@ -99,7 +99,7 @@ def filter_longforms(df: pd.DataFrame) -> pd.DataFrame:
 
 def avg_view_by_days_since_published(
     df: pd.DataFrame,
-    max_days: int = 10,
+    max_days: int = 30,
     is_short: bool = None
 ) -> pd.DataFrame:
     """
