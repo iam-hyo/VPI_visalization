@@ -67,7 +67,7 @@ with main:
     
     with s2:
         search_query = st.text_input(
-            label="",
+            label="검색어 입력",
             placeholder="🔍 검색 : 채널명·설명·핸들",
             key="search_query"
         ).strip().lower()
