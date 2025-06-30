@@ -58,6 +58,7 @@ def main():
     # Shorts vs Long-form 평균 조회수
     st.header("영상 통계량👑")
     st.write(ch_df)
+
     col1, col2 = st.columns(2)
     with col1: # 롱폼
         long_metrics, result_L = avg_view_by_days_since_published(
@@ -65,8 +66,17 @@ def main():
             max_days=30,
             is_short=False
         )
-        
-        st.markdown("#### :green-badge[Long Form] 공개 이후 평균 조회수")
+
+        st.markdown(f"""
+                <span style="
+                    background:#5f9aff;
+                    color:#fff;
+                    padding:2px 6px;
+                    border-radius:4px;
+                    font-size:0.9em;
+                    white-space:nowrap;
+                ">Long-form</span> 공개 이후 평균 조회수
+                """, unsafe_allow_html=True)
         st.metric(label="Long-form 평균 조회수", value=f"{int(avg_views(ch_df, 10, False)):,}")
         render_avg_views_table(long_metrics)
         render_avg_views_line_chart(result_L, "")
@@ -78,7 +88,16 @@ def main():
             max_days=30,
             is_short=True
         )
-        st.markdown("#### :blue-badge[Short Form] 공개 이후 평균 조회수")
+        st.markdown(f"""
+        <span style="
+            background:#ff5f5f;
+            color:#fff;
+            padding:2px 6px;
+            border-radius:4px;
+            font-size:0.9em;
+            white-space:nowrap;
+        ">Shorts</span> 공개 이후 평균 조회수
+        """, unsafe_allow_html=True)
         st.metric(label="Shorts 평균 조회수", value=f"{int(avg_views(ch_df, 10, True)):,}")
         render_avg_views_table(short_metrics)
         render_avg_views_line_chart(result_S, "")
