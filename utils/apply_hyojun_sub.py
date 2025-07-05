@@ -1,5 +1,6 @@
 import os                                      # 파일 존재 여부 확인
 import pandas as pd                            # CSV 입출력
+import datetime
 from utils.subscriber_contrib import compute_video_subscriber_contributions
 from utils.daily_contrib import compute_daily_video_subscriber_contributions_for_day
 from utils.metrics import get_subscriber_metrics
@@ -69,22 +70,63 @@ def initial_batch(ch_df: pd.DataFrame, result_L: pd.DataFrame, daily_avg: float)
     print(f"[DEBUG] initial_batch() done for {channel_id}")
 
 
-def incremental_update(ch_df: pd.DataFrame, result_L: pd.DataFrame):
+def incremental_update(
+    ch_df: pd.DataFrame,
+    result_L: pd.DataFrame
+):
     """
-    일일 업데이트: 오늘치 subs 계산 후 누적 저장
+    일일 업데이트: 오늘치 구독자 기여도 계산 후 누적 저장
+
+    :param ch_df: 채널 전체 영상 데이터 (timestamp, subscriber_count 등 포함)
+    :param result_L: gain score 계산 결과 DataFrame
     """
-    channel_id = ch_df['channel_id'].iloc[0]              # 채널 ID
+    # 1) 채널 ID 추출
+    channel_id = ch_df['channel_id'].iloc[0]
     print(f"[DEBUG] incremental_update() start for {channel_id}")
-    # 1) 기존 subs 불러오기
-    prev = load_subs(channel_id)
-    # 2) 오늘치 subs 계산
+
+    # 2) 오늘 날짜 결정 (최대 timestamp 기준)
+    today_date = ch_df['timestamp'].dt.date.max()
+    print(f"[DEBUG] today_date = {today_date}")
+
+    # 3) 오늘치 스냅샷만 추출
+    day_df = ch_df[ch_df['timestamp'].dt.date == today_date]
+    if day_df.empty:
+        print(f"[DEBUG] No data for today ({today_date}) – skipping update.")
+        return
+
+    # 4) 하루 시작·끝 구독자 수 차이 계산
+    s0 = day_df['subscriber_count'].iloc[0]
+    s1 = day_df['subscriber_count'].iloc[-1]
+    daily_delta = s1 - s0
+    print(f"[DEBUG] subscriber delta for {today_date}: {daily_delta}")
+
+    # 5) 오늘치 subs_contrib 계산 (date, daily_delta 필수 인자로 전달)
     daily_dict = compute_daily_video_subscriber_contributions_for_day(
-        ch_df, result_L
+        ch_df=ch_df,
+        result_L=result_L,
+        date=today_date,
+        daily_delta=daily_delta,
+        correction=0.8,
+        max_days=14
     )
-    print(f"[DEBUG] today contributions={daily_dict}")
-    # 3) 누적
+    print(f"[DEBUG] computed today contributions: {daily_dict}")
+
+    # 6) 기존 subs 불러와 누적 합산
+    prev = load_subs(channel_id)
     for vid, cnt in daily_dict.items():
-        prev[vid] = prev.get(vid, 0) + cnt
-    # 4) 저장
+        # cnt 가 str 일 수 있으니 float 으로 변환
+        try:
+            cnt_f = float(cnt)
+        except (ValueError, TypeError):
+            cnt_f = 0.0
+        # prev.get 도 str 일 수 있으니 float 으로 변환
+        base = prev.get(vid, 0)
+        try:
+            base_f = float(base)
+        except (ValueError, TypeError):
+            base_f = 0.0
+        prev[vid] = base_f + cnt_f
+
+    # 7) 갱신된 dict를 CSV에 저장
     save_subs(prev, channel_id)
-    print(f"[DEBUG] incremental_update() done for {channel_id}")
+    print(f"[DEBUG] incremental_update() done for {channel_id}, total entries now={len(prev)}")

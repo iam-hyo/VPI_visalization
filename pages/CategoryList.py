@@ -30,6 +30,7 @@ subscriber_count = latest['subscriber_count']
 
 sort_column_map = {
     "구독자순": latest['subscriber_count'],
+    "구독자 오름차순": latest['subscriber_count'],
     "구독자 급상승": subs_diff,
     "평균 조회수": avg_views,
     "Shorts 비율": short_ratio
@@ -108,14 +109,14 @@ with main:
         sort_key = st.selectbox(
             "정렬 기준",
             list(sort_column_map.keys()),
-            index=1,
+            index=1,                            #기본 인덱스 1번
             key=f"sort_{'_'.join(selected)}"
         )
 
     # — 소팅 & 렌더링 —
     sort_series = sort_column_map[sort_key] \
                   .loc[filtered_ids] \
-                  .sort_values(ascending=False)
+                  .sort_values(ascending = (sort_key == "구독자 오름차순"))
 
     for cid in sort_series.index:
         meta = channel_meta[cid]

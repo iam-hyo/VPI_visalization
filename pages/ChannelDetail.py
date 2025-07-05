@@ -127,10 +127,10 @@ def main():
         st.write(f"[DEBUG] Updating subs_contrib for {channel_id}")
         if last_run is None:
             st.write(f"[DEBUG] Performing initial_batch for {channel_id}")
-            initial_batch(ch_df, video_gain_df, daily_avg)      # 초기 계산 with external daily_avg
+            initial_batch(ch_df, result_L, daily_avg)      # 초기 계산 with external daily_avg
         else:
             st.write(f"[DEBUG] Performing incremental_update for {channel_id}")
-            incremental_update(ch_df, video_gain_df)          # 일일 업데이트
+            incremental_update(ch_df, result_L)          # 일일 업데이트
         # 메타 갱신
         channel_meta[channel_id]["last_run_date"] = today_str
         with open(meta_path, "w", encoding="utf-8") as f:
