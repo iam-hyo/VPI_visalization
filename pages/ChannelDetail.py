@@ -150,7 +150,7 @@ def main():
 
     # 2) 다중이 계산
     # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib']
-    coefficient_df = regression_score(
+    coefficient_df  = regression_score(
         ch_df       = ch_df,
         daily_subs  = daily_avg,
         days        = 14
@@ -201,6 +201,7 @@ def main():
                 update_video
                 .merge(coefficient_df, on='video_id', how='left')
                 .fillna({'βᵢ / β_total': 0})  # 계산 누락된 경우 0으로
+                .fillna({'regression_subs_contrib': 0})  # 계산 누락된 경우 0으로
             )
 
             # 7) 정렬 기준 선택
