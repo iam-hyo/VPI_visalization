@@ -34,8 +34,9 @@ def main():
     df = load_processed_data("data/processed_data_v2.csv")
     meta_path    = "data/channel_meta.json"
     channel_meta = load_channel_meta(meta_path)
-
+    
     channel_id = st.query_params.get("channel_id")
+    channel_name = channel_meta[channel_id]["channel_title"]
     ch_df = df[df["channel_id"] == channel_id]
     growth, daily_avg, end, start = get_subscriber_metrics(ch_df, 30)
 
@@ -121,12 +122,11 @@ def main():
     today_date = datetime.date.today()
     today_str = today_date.isoformat()
     last_run = channel_meta[channel_id].get("last_run_date")
-    st.write(f"[DEBUG] Channel {channel_id} last_run: {last_run}, today: {today_str}")
+    st.caption(f"[DEBUG] {channel_name} last_run: {last_run}, today: {today_str}")
 
     if last_run != today_str:
-        st.write(f"[DEBUG] Updating subs_contrib for {channel_id}")
         if last_run is None:
-            st.write(f"[DEBUG] Performing initial_batch for {channel_id}")
+            st.write(f"[DEBUG] initial_batch() start for {channel_id} with daily_avg={daily_avg}")
             initial_batch(ch_df, result_L, daily_avg)      # 초기 계산 with external daily_avg
         else:
             st.write(f"[DEBUG] Performing incremental_update for {channel_id}")
@@ -190,7 +190,7 @@ def main():
                 .fillna({'gain_score': 0})     # 계산 누락된 경우 0으로
             )
 
-            #5.5) sub_Contrib merge
+            #5.5) sub_Cnotrib merge
             update_video = update_video.merge(
                 subs_df_ch[['video_id', 'subs_contrib']],
                 on='video_id', how='left'
