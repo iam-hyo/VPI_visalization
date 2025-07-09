@@ -116,6 +116,6 @@ def render_video_card(
                 ">다중이 지표</span>
                 """, unsafe_allow_html=True)
             st.metric("βᵢ / β_total", f"{row.get('βᵢ / β_total', 0):.2f}")
-            # st.metric("추정 구독자 기여", f"{row['regression_subs_contrib']:.1f}명")
+            st.metric("추정 구독자 기여", f"{row['regression_subs_contrib']:.1f}명")
 
     st.write("---")
