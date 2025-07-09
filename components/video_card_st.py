@@ -1,5 +1,4 @@
 # components/video_card_st.py
-
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
@@ -104,7 +103,6 @@ def render_video_card(
                 ">기본이 지표</span>
                 """, unsafe_allow_html=True)
 
-            
         with index2:
             st.markdown(f"""
                 <span style="

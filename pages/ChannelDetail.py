@@ -3,22 +3,21 @@ import streamlit as st
 import pandas as pd
 import json, datetime, requests, base64
 
-
+from utils.apply_hyojun_index import compute_video_gain_scores
+from utils.apply_hyojun_sub import (
+    initial_batch,
+    incremental_update,
+    SUBS_FILE
+)
 from utils.apply_regression_index import regression_score
 from utils.data_loader import load_processed_data, load_channel_meta
 from utils.metrics import (
     get_subscriber_metrics, avg_views, 
     avg_view_by_days_since_published, format_korean_count, parse_published_at
 )
-from utils.apply_hyojun_index import compute_video_gain_scores
+from components.channel_nameCard import render_name_card
 from components.charts import render_avg_views_table, render_avg_views_line_chart
 from components.video_card_st import render_video_card
-from components.channel_nameCard import render_name_card
-from utils.apply_hyojun_sub import (
-    initial_batch,
-    incremental_update,
-    SUBS_FILE
-)
 
 def img_url_to_base64(url):
     response = requests.get(url)
@@ -69,8 +68,8 @@ def main():
     with col1: # 롱폼
         long_metrics, result_L = avg_view_by_days_since_published(
             ch_df,
-            max_days=30,
-            is_short=False
+            max_days    = 30,
+            is_short    = False
         )
 
         st.markdown(f"""
@@ -91,8 +90,8 @@ def main():
         # 숏폼
         short_metrics, result_S = avg_view_by_days_since_published(
             ch_df,
-            max_days=30,
-            is_short=True
+            max_days    = 30,
+            is_short    = True
         )
         st.markdown(f"""
         <span style="
@@ -118,6 +117,7 @@ def main():
         c            = 100.0,
         days         = 14
     )
+
     # 1.5) subscriber_contrib 계산 (채널별 last_run_date 로 관리)
     today_date = datetime.date.today()
     today_str = today_date.isoformat()
@@ -139,27 +139,25 @@ def main():
     else:
         st.write(f":white_check_mark: Channel {channel_id} subs_contrib already updated today.")
 
-
     # CSV에서 갱신된 subs_contrib 불러오기
     subs_df = pd.read_csv(SUBS_FILE)                          # 전체 채널 subs
     subs_df_ch = subs_df[subs_df["channel_id"] == channel_id]
 
-
-    # 2) 갱신된 subs_contrib.csv 불러오기
+    # 1.5) 갱신된 subs_contrib.csv 불러오기
     subs_df = pd.read_csv(SUBS_FILE)  # columns: video_id, subs_contrib
 
     # 2) 다중이 계산
     # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib']
-    coefficient_df  = regression_score(
+    # 반환값2: DataFrame with columns ['Date','Spread Change']
+    coefficient_df, spread_change_df = regression_score(
         ch_df       = ch_df,
-        daily_subs  = daily_avg,
-        days        = 14
+        days        = 30,
+        channel_id  = channel_id
     )
-
     # ──────────────────────────────────────────────────────────
+
     # 최근 영상 Expander
     st.subheader("최근 영상 상세")
-
 
     # 1) 롱폼/숏폼 필터링 탭
     tab_all, tab_longs, tab_shorts = st.tabs(["전체영상", "롱폼", "쇼츠"])
@@ -190,7 +188,7 @@ def main():
                 .fillna({'gain_score': 0})     # 계산 누락된 경우 0으로
             )
 
-            #5.5) sub_Cnotrib merge
+            #5.5) sub_Contrib merge
             update_video = update_video.merge(
                 subs_df_ch[['video_id', 'subs_contrib']],
                 on='video_id', how='left'
@@ -242,8 +240,8 @@ def main():
                 .fillna(0)
                 .astype(int)
             )
-
             #----------------------------------------------------
+
             # 7) 각 영상 렌더링
             for _, row in update_video.iterrows():
                 vid = row["video_id"]

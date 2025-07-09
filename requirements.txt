@@ -3,4 +3,6 @@ pandas
 matplotlib
 plotly
 scikit-learn
+selenium
+bs4
 #sklearn
