@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import json, datetime, requests, base64
 
+from utils.apply_basic_index import compute_gain_score
 from utils.apply_hyojun_index import compute_video_gain_scores
 from utils.apply_hyojun_sub import (
     initial_batch,
@@ -154,6 +155,12 @@ def main():
         days        = 30,
         channel_id  = channel_id
     )
+
+    # 3) 기본이 계산
+    final_score_df = compute_gain_score(
+        ch_df1=ch_df,
+        days=14
+    )
     # ──────────────────────────────────────────────────────────
 
     # 최근 영상 Expander
@@ -202,7 +209,13 @@ def main():
                 .fillna({'regression_subs_contrib': 0})  # 계산 누락된 경우 0으로
             )
 
-            # 7) 정렬 기준 선택
+            # 7) final_score 머지
+            update_video = update_video.merge(
+                final_score_df,
+                on='video_id', how='left'
+            ).fillna({'final_score': 0})
+
+            # 8) 정렬 기준 선택
             col1, col2 = st.columns([3,1])
             col1.markdown(f"**총 영상개수: {len(update_video):,}개**")
             sort_option = col2.selectbox(
@@ -212,8 +225,10 @@ def main():
                 key=f"sort-{tab_name}"
             )
 
+            update_video['published_at_dt'] = pd.to_datetime(update_video['published_at_dt'], errors='coerce')
+
             if sort_option == "최신순":
-                update_video = update_video.sort_values('published_at', ascending=False)
+                update_video = update_video.sort_values('published_at_dt', ascending=False)
             elif sort_option == "조회수순":
                 update_video = update_video.sort_values('view_count', ascending=False)
             else:  # 기여도순
