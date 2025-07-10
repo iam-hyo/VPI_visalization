@@ -55,7 +55,6 @@ def initial_batch(ch_df: pd.DataFrame, result_L: pd.DataFrame, daily_avg: float)
     최초 배치: 상수 daily_avg로 영상별 누적 subs_contrib 계산 후 저장
     """
     channel_id = ch_df['channel_id'].iloc[0]
-    print(f"[DEBUG] initial_batch() start for {channel_id} with daily_avg={daily_avg}")
     # subs_contrib 계산
     subs_df = compute_video_subscriber_contributions(
         ch_df,
