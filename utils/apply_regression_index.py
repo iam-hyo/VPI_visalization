@@ -1,11 +1,12 @@
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from scipy.optimize import nnls
 from utils.sub_scrapper1 import scrap_subscriber
 
 def regression_score(
     ch_df: pd.DataFrame,
-    days: int = 30,
+    days: int = 14,
     channel_id: str = None
 ):
     long_df = ch_df[ch_df['is_short'] == False].copy()
@@ -117,20 +118,24 @@ def regression_score(
                 merged_df.loc[:first_idx - 1, "Spread Change"] = spread_val
 
     merged_df["Day"] = range(1, len(merged_df) + 1)
-    df_filtered = merged_df[merged_df["Day"] >= len(merged_df) - days]
+    df_filtered = merged_df.iloc[-days:]
 
     # use this line to check data
-    merged_df.to_csv("data/temp.csv", index=False)
+    df_filtered.to_csv("data/temp.csv", index=False)
 
     # Prepare data for regression
     X = df_filtered.drop(columns=["Date", "Day", "Daily Subscribers", "isChange", "Spread Change"])
     y = df_filtered["Spread Change"]
 
-    # Fit model
-    model_std = LinearRegression()
-    model_std.fit(X, y)
+    X_np = X.to_numpy()
+    y_np = y.to_numpy()
 
-    raw_betas = model_std.coef_
+    # Fit model
+    # model = LinearRegression()
+    # model.fit(X, y)
+    raw_betas, _ = nnls(X_np, y_np)
+
+    # raw_betas = model.coef_
     beta_total = raw_betas.sum()
 
     if beta_total != 0:
