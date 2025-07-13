@@ -1,15 +1,14 @@
 import pandas as pd
 import numpy as np
 
-def compute_gain_score(ch_df1: pd.DataFrame, days: int = 14) -> pd.DataFrame:
+def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
+    # channel_id | video_id | title | published_at | is_short | thumbnail_url | timestamp | subscriber_count | day_since_pub | comment_count | like_count | view_count
     # ---------- 날짜 정리 ----------
-    ch_df1['timestamp'] = pd.to_datetime(ch_df1['timestamp'], utc=True, errors='coerce').dt.normalize()
-    ch_df1['published_at'] = pd.to_datetime(ch_df1['published_at'], utc=True, errors='coerce').dt.normalize()
+    ch_df['timestamp'] = pd.to_datetime(ch_df['timestamp'], utc=True, errors='coerce').dt.normalize()
+    ch_df['published_at'] = pd.to_datetime(ch_df['published_at'], utc=True, errors='coerce').dt.normalize()
 
     # ---------- 채널 핸들 추출 및 롱폼 필터링 ----------
-    if ch_df1.empty or 'channel_handle' not in ch_df1.columns:
-        raise ValueError("❌ 'channel_handle'이 누락되었거나 데이터가 비어 있습니다.")
-    video_df = ch_df1[ch_df1['is_short'] == False].copy()
+    video_df = ch_df[ch_df['is_short'] == False].copy()
     if video_df.empty:
         raise ValueError("❌ 분석 가능한 롱폼 영상 데이터가 없습니다.")
 

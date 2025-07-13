@@ -1,164 +1,210 @@
-from datetime import timedelta
+"""
+video_gain.py with separated preprocessing function
+
+이 파일은 크게 4개의 함수로 구성되어 있습니다:
+1) preprocess_channel_data: channel_df와 ch_snap을 날짜 기준으로 병합하고 전처리
+2) aggregate_views_within_days: 영상별 조회수 변화량 집계
+3) compute_channel_gain_index: 채널 수준 GainIndex 계산
+4) compute_video_gain_scores: 전처리된 데이터를 이용해 영상별 Gain Score 계산
+
+호출 예시:
+```python
+from video_gain import compute_video_gain_scores
+
+video_gain_df = compute_video_gain_scores(
+    channel_df=ch_df,
+    ch_snap=ch_snap,
+    end_subs=latest_subs,
+    total_view=total_view,
+    c=100.0,
+    days=14
+)
+```
+"""
 import numpy as np
 import pandas as pd
 import streamlit as st
+from datetime import timedelta
 from utils.metrics import parse_published_at
 
-def compute_channel_gain_index(
+
+def preprocess_channel_data(
     channel_df: pd.DataFrame,
-    r0: float = 0.01,
-    days: int = 14, 
-    daily_avg: float = None
-) -> float:
+    ch_snap: pd.DataFrame
+) -> pd.DataFrame:
     """
-    채널 전체의 보정 전환 기여도 (GainIndex_chan) 계산.
-    - 기대전환율 r0는 외부에서 주입된 값(예: (end_subs/total_views)/ln(end_subs+c))
-    - 실제전환율 r_d는 기간 내 구독자 증가량 ΔS_d / 기간 내 조회수 V_d
+    channel_df와 ch_snap을 날짜 기준으로 병합하여 subscriber_count를 업데이트합니다.
+    1) channel_df: timestamp→datetime, date 추출, video_id+date별 첫 row만 남김
+    2) ch_snap: collected_at→datetime, date 추출, 날짜별 subscriber_count 정리
+    3) 전체 날짜 기간을 보장하고 결측값은 전후일 구독자 수로 보간
+    4) channel_daily에 subscriber_count merge
     """
-    # 1) timestamp 기준 오름차순 보장
-    df = channel_df.sort_values('timestamp')
+    # 1) channel_df 전처리
+    df = channel_df.copy()
+    df['timestamp'] = parse_published_at(df['timestamp'])
+    df['date'] = df['timestamp'].dt.date
+    channel_daily = (
+        df
+        .sort_values('timestamp')
+        .drop_duplicates(subset=['video_id', 'date'], keep='first')
+    )
 
-    # 2) 기간 내 조회수 변화량 집계
-    views_series = aggregate_views_within_days(df, days=days)
-    total_views_in_days = views_series.sum()
+    # 2) ch_snap 전처리
+    snap = ch_snap.copy()
+    snap['timestamp'] = parse_published_at(snap['collected_at'])
+    snap['date'] = snap['timestamp'].dt.date
+    daily_snap = (
+        snap[['date', 'subscriber_count']]
+        .drop_duplicates('date')
+        .sort_values('date')
+    )
 
-    # 3) 기간 시작·끝 구독자 수 (평균 변화량 vs 기간 변화량)
-    if daily_avg != None:
-        ΔS = daily_avg * days
-    else :
-        cutoff = df['timestamp'].max() - timedelta(days=days) #가장 최근 수집으로부터 2주 전과 비교.
-        recent = df[df['timestamp'] >= cutoff]
-        if len(recent) < 2:
-            ΔS = 0
-        else:
-            start_subs = recent['subscriber_count'].iloc[0]
-            end_subs   = recent['subscriber_count'].iloc[-1]
-            ΔS = end_subs - start_subs
+    # 3) 전체 날짜 보장 & 보간
+    all_dates = pd.date_range(
+        start=daily_snap['date'].min(),
+        end=daily_snap['date'].max(),
+        freq='D'
+    ).date
+    full_snap = (
+        pd.DataFrame({'date': all_dates})
+        .merge(daily_snap, on='date', how='left')
+    )
+    full_snap['subscriber_count'] = full_snap['subscriber_count'].interpolate()
+    # st.write("[DEBUG] preprocess -> full_snap sample:", full_snap.head())
 
-    # 4) 기대 전환율 (외부 r0 입력값 그대로 사용)
-    #    r0 = (end_subs_period/total_views) / ln(end_subs_period + c)
-    expected_rate = r0
-
-    # 5) 실제 전환율 r_d = ΔS_d / V_d
-    actual_rate = ΔS / total_views_in_days if total_views_in_days > 0 else 0.0
-    # st.write(f"ΔS (subs change): {ΔS}, V_d (views): {total_views_in_days}")
-    # st.write(f"actual_rate (r_d): {actual_rate:.4f}")
-
-    # 6) 채널 GainIndex = r_d / r0
-    GainIndex_chan = actual_rate / expected_rate if expected_rate > 0 else 0.0
-    st.write(f"GainIndex_chan (r_d/r0): {GainIndex_chan:.4f}")
-
-    return GainIndex_chan
+    # 4) merge
+    channel_daily = channel_daily.drop(columns=['subscriber_count'], errors='ignore')
+    merged = channel_daily.merge(
+        full_snap[['date', 'subscriber_count']],
+        on='date', how='left'
+    )
+    # st.write("[DEBUG] preprocess -> merged sample:", merged.head())
+    return merged
 
 
-def aggregate_views_within_days( #조회수 변화량을 영상별로 집계 (10일 경과 시점 고정)
-    channel_df: pd.DataFrame,
-    days: int = 10
+def aggregate_views_within_days(
+    df: pd.DataFrame,
+    days: int = 14
 ) -> pd.Series:
     """
-    업로드일로부터 최대 'days'일 이내의 조회수 변화량을
-    video_id별로 계산해 반환.
-    - 10일 초과 영상: published_at + days 시점 스냅샷을 고정 사용
-    - 최근 영상(10일 미만): 최신 스냅샷 사용
+    각 video_id별로 업로드 이후 최대 `days`일 이내의
+    조회수 변화량(view_end - view_start)을 계산하여 반환합니다.
     """
-    df = channel_df.copy()
-    # datetime 타입 보장
-    df['published_at'] = parse_published_at(df['published_at'])
-    df['timestamp']    = pd.to_datetime(df['timestamp'])
+    df_copy = df.copy()
+    df_copy['published_at'] = parse_published_at(df_copy['published_at'])
+    df_copy['timestamp'] = parse_published_at(df_copy['timestamp'])
 
-    # 1) 각 영상의 업로드 직후 초기 스냅샷(view0)
+    # 최초 스냅샷
     first_snaps = (
-        df[df['timestamp'] >= df['published_at']]
+        df_copy[df_copy['timestamp'] >= df_copy['published_at']]
         .sort_values(['video_id', 'timestamp'])
         .groupby('video_id')
         .first()
     )
 
-    # 2) 각 영상의 종료 스냅샷(view_end)
+    # 종료 스냅샷 선택
     def pick_end_snap(group: pd.DataFrame) -> pd.Series:
-        pub = group['published_at'].iloc[0]
-        cutoff = pub + timedelta(days=days)
+        pub_time = group['published_at'].iloc[0]
+        cutoff = pub_time + timedelta(days=days)
+        snaps_after = group[group['timestamp'] >= group['published_at']]
 
-        # 10일 초과 여부에 따라 기준 시점 선택
-        if group['timestamp'].max() < cutoff:
-            # 아직 10일이 지나지 않은 영상: 마지막 값
-            end_snap = group.sort_values('timestamp').iloc[-1]
-        else:
-            # 10일 지난 영상: 10일 시점 직후 첫 스냅샷
-            end_snap = group[group['timestamp'] >= cutoff].sort_values('timestamp').iloc[0]
-        return end_snap
+        if snaps_after['timestamp'].max() >= cutoff:
+            return (
+                snaps_after[snaps_after['timestamp'] >= cutoff]
+                .sort_values('timestamp')
+                .iloc[0]
+            )
+        return snaps_after.sort_values('timestamp').iloc[-1]
 
-    end_snaps = df.groupby('video_id').apply(pick_end_snap, include_groups=False)
+    end_snaps = df_copy.groupby('video_id').apply(pick_end_snap, include_groups=False)
+    delta_views = end_snaps['view_count'] - first_snaps['view_count']
+    # st.write("[DEBUG] aggregate_views -> sum delta_views:", float(delta_views.sum()))
+    return delta_views.rename('delta_views')
 
-    # 3) view 변화량 계산
-    view0 = first_snaps['view_count']
-    view_end = end_snaps['view_count']
-    delta_views = view_end - view0
 
-    return delta_views.rename("delta_views")
+def compute_channel_gain_index(
+    df: pd.DataFrame,
+    r0: float,
+    days: int = 14,
+    daily_avg: float = None
+) -> float:
+    """
+    채널 수준의 GainIndex를 계산합니다.
+    """
+    df_sorted = df.sort_values('timestamp')
+    # st.write("[DEBUG] channel_gain -> total snaps:", len(df_sorted))
+
+    # 구독자 변화량 ΔS
+    if daily_avg is not None:
+        delta_subs = daily_avg * days
+    else:
+        max_time = df_sorted['timestamp'].max()
+        start_time = max_time - timedelta(days=days)
+        recent = df_sorted[df_sorted['timestamp'] >= start_time]
+        # st.write("[DEBUG] channel_gain -> recent snaps:", len(recent))
+        if len(recent) < 2:
+            # st.write("[DEBUG] channel_gain -> insufficient snapshots")
+            return 0.0
+        delta_subs = recent['subscriber_count'].iloc[-1] - recent['subscriber_count'].iloc[0]
+    # st.write("[DEBUG] channel_gain -> ΔS:", float(delta_subs))
+
+    # 조회수 변화량 합계
+    delta_views = aggregate_views_within_days(df_sorted, days)
+    total_views_d = delta_views.sum()
+    # st.write("[DEBUG] channel_gain -> total_views_d:", float(total_views_d))
+
+    # 실제 전환율 r_d
+    actual_rate = delta_subs / total_views_d if total_views_d > 0 else 0.0
+    # st.write("[DEBUG] channel_gain -> actual_rate:", float(actual_rate))
+    # st.write("[DEBUG] channel_gain -> expected_rate:", float(r0))
+
+    # GainIndex 계산
+    gain_index = actual_rate / r0 if r0 > 0 else 0.0
+    # st.write("[DEBUG] channel_gain -> gain_index:", float(gain_index))
+    return gain_index
 
 
 def compute_video_gain_scores(
     channel_df: pd.DataFrame,
+    ch_snap: pd.DataFrame,
     end_subs: int,
-    total_views: int,
+    total_view: int,
     c: float = 100.0,
     days: int = 14
 ) -> pd.DataFrame:
     """
-    쇼츠 영상을 배제하고 롱폼 영상 기준으로 채널 GainIndex를 계산한 뒤,
-    조회수 비중대로 Gain Score를 산출합니다.
-
-    Parameters:
-    - channel_df: 전체 시계열 데이터 (timestamp, published_at, view_count,
-      subscriber_count, is_short, video_id 포함)
-    - end_subs: 기간 종료 시점 누적 구독자 수
-    - total_views: 기간 내 전체 조회수 합 (롱폼 기반 계산을 위해 재계산됨)
-    - c: 로그 안정화 상수
-    - days: 계산 기준 기간 (일)
-
-    Returns:
-    DataFrame with columns ['video_id', 'gain_score']
-      - gain_score: 롱폼 영상에만 실수 값, 쇼츠는 None
+    1) preprocess_channel_data 호출
+    2) 영상별 Gain Score 계산
     """
-    # 1) 롱폼 영상만 필터링
-    long_df = channel_df[channel_df['is_short'] == False].copy()
+    # 1) 전처리
+    merged_df = preprocess_channel_data(channel_df, ch_snap)
 
-    # 2) 기준 전환율 r0 설정: (end_subs/total_views) / ln(end_subs + c)
-    #    total_views 파라미터는 롱폼 기준으로 재계산하므로 여기서는 end_subs/(sum of all views) 대신 재구성할 수 있음
-    #    기본적으로 주어진 total_views로 계산하되, 0 방지 처리
-    if total_views > 0:
-        r0_baseline = (end_subs / total_views) / np.log(end_subs*0.5 + c)
-    else:
-        r0_baseline = 0.0
+    # 2) 롱폼 필터링 및 r0 계산
+    long_df = merged_df[merged_df['is_short'] == False].copy()
+    r0_baseline = (end_subs / total_view) / np.log(end_subs * 0.5 + c) if total_view > 0 else 0.0
+    # st.write("[DEBUG] compute_video_gain -> r0_baseline:", float(r0_baseline))
 
-    # 3) 채널 GainIndex 계산 (롱폼 기준)
-    gain_chan = compute_channel_gain_index(
-        long_df,
-        r0=r0_baseline, 
+    # 3) GainIndex
+    gain_index = compute_channel_gain_index(
+        df=long_df,
+        r0=r0_baseline,
         days=days
     )
+    
+    # 4) 영상별 조회수 변화량 및 가중치
+    delta_views = aggregate_views_within_days(long_df, days)
+    total_views_long = delta_views.sum()
+    weights = delta_views / total_views_long if total_views_long > 0 else pd.Series(0, index=delta_views.index)
+    # st.write("[DEBUG] compute_video_gain -> weights:", weights.head())
 
-    # 4) 롱폼 영상 조회수 변화량 집계
-    views_series = aggregate_views_within_days(long_df, days=days)
-    total_views_long = views_series.sum()
+    # 5) Gain Score
+    gain_scores = gain_index * weights
+    # st.write("[DEBUG] compute_video_gain -> gain_scores:", gain_scores.head())
 
-    # 5) 롱폼 영상 가중치(조회수 비중)
-    if total_views_long > 0:
-        weights = views_series / total_views_long
-    else:
-        weights = views_series * 0.0
-
-    # 6) 영상별 Gain Score 계산 (롱폼)
-    gain_scores = gain_chan * weights
-
-    # 7) 전체 영상 리스트와 합치기 (쇼츠는 None)
-    unique_videos = channel_df[['video_id', 'is_short']].drop_duplicates(subset='video_id')
-    result_df = unique_videos.copy()
-    result_df['gain_score'] = result_df['video_id'].map(gain_scores.to_dict())
-
-    # 쇼츠는 '-' 혹은 None으로 처리(여기서는 None)
-    result_df.loc[result_df['is_short'], 'gain_score'] = None
-
-    # 8) 반환: ['video_id', 'gain_score'] 형태
-    return result_df[['video_id', 'gain_score']]
+    # 6) 결과 반환
+    videos = channel_df[['video_id', 'is_short']].drop_duplicates('video_id')
+    result = videos.copy()
+    result['gain_score'] = result['video_id'].map(gain_scores.to_dict())
+    result.loc[result['is_short'], 'gain_score'] = None
+    # st.write("[DEBUG] compute_video_gain -> result sample:", result.head())
+    return result[['video_id', 'gain_score']]

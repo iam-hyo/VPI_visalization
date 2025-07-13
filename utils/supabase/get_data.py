@@ -15,7 +15,7 @@ def fetch_channel() -> dict:
     
     return {row['id']: row for row in res.data}
 
-def fetch_channel_snapshots() -> pd.DataFrame:
+def fetch_all_channel_snapshots() -> pd.DataFrame:
     """Supabase의 channel_snapshots 테이블에서 채널 스냅샷 가져오기"""
     all_snaps = []
     range_size = 1000
@@ -37,7 +37,23 @@ def fetch_channel_snapshots() -> pd.DataFrame:
     df_snaps = pd.DataFrame(all_snaps)
     
     return df_snaps
-        
+
+def fetch_channel_snapshots(channel_id: str) -> pd.DataFrame:
+    """특정 채널의 스냅샷을 가져오는 함수"""
+    res = (
+        supabase.table("channel_snapshots")
+        .select("*")
+        .eq("channel_id", channel_id)
+        .execute()
+    )
+    
+    if not res.data:
+        raise RuntimeError(f"❌ 채널 ID {channel_id}에 대한 스냅샷 데이터를 불러올 수 없습니다.")
+    
+    df_snaps = pd.DataFrame(res.data)
+    
+    return df_snaps
+
 def fetch_videos() -> pd.DataFrame:
     """Supabase의 videos 테이블에서 영상 메타데이터 가져오기"""
     all_videos = []
@@ -151,7 +167,7 @@ def get_channel_video_snapshots(channel_id):
         return pd.DataFrame()
 
     # 2. videos.id → video_snapshots.video_id와 매칭되는 row만 추출 (페이징 포함)
-    video_ids = list(df_videos["id"].unique())
+    video_ids = list(df_videos["video_id"].unique())
     snapshots = []
 
     for i in range(0, len(video_ids), 1000):
@@ -184,8 +200,8 @@ def get_channel_video_snapshots(channel_id):
     df_videos = df_videos.drop(columns=["saved_at"], errors="ignore")
 
     # 3. 병합: video_snapshots + videos
-    df = df_snaps.merge(df_videos, left_on="video_id", right_on="id", suffixes=("", "_video"))
-    df = df.drop(columns=["id_video"], errors="ignore")  # 'id', saved_at 열 제거
+    df = df_snaps.merge(df_videos, left_on="video_id", right_on="video_id", suffixes=("", "_video"))
+    df = df.drop(columns=["video_id_video"], errors="ignore")  # 'id', saved_at 열 제거
 
     df["published_at"] = parse_published_at(df["published_at"])
     df["day_since_pub"] = (df["timestamp"] - df["published_at"]).dt.days

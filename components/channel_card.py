@@ -59,6 +59,9 @@ def render_channel_card(channel_id: str, meta: dict, stats: dict):
 
         st.markdown(f":label: 평균 조회수: `{int(avg_views):,}`회")
         st.markdown(f":label: 쇼츠 비율: `{short_ratio:.0%}`")
-        st.markdown(f":label: 총 영상 수: `{video_count:,}`개")
+        if video_count is not None:
+            st.markdown(f":label: 총 영상 수: `{video_count:,}`개")
+        else:
+            st.markdown(":label: 총 영상 수: `정보 없음`")
 
     st.markdown("---")

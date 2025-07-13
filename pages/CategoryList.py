@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from components.channel_card import render_channel_card
-from utils.supabase.get_data import fetch_channel, fetch_channel_snapshots, fetch_videos
+from utils.supabase.get_data import fetch_channel, fetch_all_channel_snapshots, fetch_videos
 
 st.set_page_config(
     page_title="VPI",
@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # 1) 데이터 불러오기 & 통계 계산
-ch_snaps = fetch_channel_snapshots()  #channel_snapshots : 
+ch_snaps = fetch_all_channel_snapshots()  #channel_snapshots : 
 # channel_id | collected_at | subscriber_count | total_view_count | video_count
 
 channel_meta = fetch_channel()  #channels table 불러오기

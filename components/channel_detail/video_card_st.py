@@ -102,8 +102,8 @@ def render_video_card(
                     white-space:nowrap;
                 ">기본이 지표</span>
                 """, unsafe_allow_html=True)
-            st.metric(label="Final Score", value=f"{row.get('final_score', 0):.4f}")
-            st.metric(label='추정 구독자 기여', value=f"{row.get('estimated_subs', 0):.4f}명")
+            st.metric(label="Final Score", value=f"{row.get('final_score', 0):.2f}")
+            st.metric(label='추정 구독자 기여', value=f"{row.get('estimated_subs', 0):.1f}명")
 
         with index2:
             st.markdown(f"""

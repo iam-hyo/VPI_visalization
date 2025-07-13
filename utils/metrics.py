@@ -78,18 +78,33 @@ def format_korean_count(n: int) -> str:
         return f"{n:,}"
     return " ".join(parts)
 
-def get_subscriber_metrics(df: pd.DataFrame, days: int = 14): # days일 이내 구독자 변동성장률 가져옴
-    cutoff = today - timedelta(days=days) #최근 {days}일 전 timestamp
-    recent = df[df['published_at'] >= cutoff]
-
-    if len(recent) < 2:
-        return 0.0, 0.0, 0, 0
-    first, start, end = df['subscriber_count'].iloc[0], recent['subscriber_count'].iloc[0], recent['subscriber_count'].iloc[-1]
+def get_subscriber_metrics(ch_snap: pd.DataFrame, days: int = 30): # days일 이내 구독자 변동성장률 가져옴
+    df = ch_snap.copy()
+    # channel_id | collected_at | subscriber_count | total_view_count | video_count
+    df['collected_at'] = parse_published_at(df['collected_at'])
     
-    actual_days = (recent['timestamp'].iloc[-1] - recent['timestamp'].iloc[0]).total_seconds() / (3600 * 24)
-    growth = (end - first) # 수집기간 중 구독자 변화량
-    daily_avg = (end - start) / actual_days if actual_days > 0 else 0 # recent기간중 일일 변화량
-    return growth, daily_avg, end, start
+    # 2) 최근 days일 기준으로 필터링
+    now    = pd.Timestamp.now()
+    cutoff = now - timedelta(days=days)
+    recent = df[df['collected_at'] >= cutoff].sort_values('collected_at')
+    
+    if recent.shape[0] < 2:
+        raise ValueError(f"최근 {days}일간 수집된 스냅샷이 부족합니다: {recent.shape[0]}건")
+    
+    # 3) 초기 / 최신 구독자 수
+    initial_subs = recent['subscriber_count'].iloc[0]
+    latest_subs  = recent['subscriber_count'].iloc[-1]
+    
+    # 4) 증가량
+    subs_diff = latest_subs - initial_subs
+    
+    # 5) 실제 수집 기간 (일 단위)
+    delta = recent['collected_at'].iloc[-1] - recent['collected_at'].iloc[0]
+    actual_days = delta.total_seconds() / (3600 * 24)
+    
+    # 7) 일평균 구독자 증가량
+    avg_daily_increase = subs_diff / actual_days
+    return subs_diff, avg_daily_increase, latest_subs
 
 def filter_shorts(df: pd.DataFrame) -> pd.DataFrame:
     return df[df['is_short'] == True]

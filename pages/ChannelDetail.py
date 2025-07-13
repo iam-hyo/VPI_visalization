@@ -7,12 +7,13 @@ from utils.apply_basic_index import compute_gain_score
 from utils.apply_hyojun_index import compute_video_gain_scores
 from utils.apply_hyojun_sub import (initial_batch, incremental_update, SUBS_FILE)
 from utils.apply_regression_index import regression_score
-from utils.metrics import (get_subscriber_metrics, avg_views, avg_view_by_days_since_published, format_korean_count)
+from utils.metrics import (get_subscriber_metrics, avg_views, avg_view_by_days_since_published)
 
-from utils.supabase.get_data import fetch_channel, get_channel_video_snapshots
-from components.channel_nameCard import render_name_card
-from components.charts import render_avg_views_table, render_avg_views_line_chart
-from components.video_card_st import render_video_card
+from utils.supabase.get_data import fetch_channel, get_channel_video_snapshots, fetch_channel_snapshots
+from components.channel_detail.channel_nameCard import render_name_card
+from components.channel_detail.charts import render_avg_views_table, render_avg_views_line_chart, render_estimated_subscribers_chart
+from components.channel_detail.video_card_st import render_video_card
+from components.channel_detail.ch_statusb_bar import render_status_bar
 
 def img_url_to_base64(url):
     response = requests.get(url)
@@ -20,38 +21,50 @@ def img_url_to_base64(url):
 
 st.set_page_config(
     page_icon="📺",
-    layout="wide",                    # 필요에 따라 'centered'로 바꿔도 됩니다
+    layout="wide",                    
     initial_sidebar_state="collapsed" # 'collapsed', 'expanded', 또는 'auto'
 )
 
 def main():    
     channel_id = st.query_params.get("channel_id")
-    channel_meta = fetch_channel()[channel_id]  #channel_meta.json 불러오기
-    ch_df2 = get_channel_video_snapshots(channel_id)
+    channel_meta = fetch_channel()[channel_id]  #channels 불러오기
 
-    channel_name = channel_meta["title"]
-    growth, daily_avg, end, start = get_subscriber_metrics(ch_df2, 30)
+    ch_df = get_channel_video_snapshots(channel_id)
+    # channel_id | video_id | title | published_at | is_short | thumbnail_url | timestamp | subscriber_count | day_since_pub | comment_count | like_count | view_count
+    
+    ch_snap = fetch_channel_snapshots(channel_id).sort_values("collected_at")
+    # channel_id | collected_at | subscriber_count | total_view_count | video_count
+
+    video_count = ch_snap.iloc[-1]["video_count"]
+    total_view = ch_snap.iloc[-1]["total_view_count"]
+    subs_diff, avg_daily_increase, latest_subs = get_subscriber_metrics(ch_snap, 30)
 
     #==========================UI랜더링=========================
     render_name_card(channel_meta)
+    render_status_bar(
+        latest_subs=latest_subs,
+        video_count=video_count,
+        total_view=total_view,
+        subs_diff=subs_diff,
+        avg_daily_increase=avg_daily_increase,
+    )
+    #───────────────────────────────────────────────────────────
 
-    ## status_Bar.py로 추후 이관.
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.metric("구독자 수", f"{end:,}명") 
-    with col2:
-        st.metric("총 영상 수", f"{channel_meta['video_count']:,}개")
-    total_view = channel_meta['total_view_count']
-    formated_total_view = format_korean_count(total_view)
-    with col3:
-        st.metric("총 조회수", f"{formated_total_view}회")
-    with col4:
-        st.metric("구독자 증가수", f"{growth:,}명")
-    with col5:
-        st.metric("30일 일평균 구독자 증가량", f"{daily_avg:,.1f}명")
-    st.write("---")
-   
-    # ==================================================================
+      # 2) 다중이 계산
+    # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib']
+    # 반환값2: DataFrame with columns ['Date','Spread Change']
+    coefficient_df, spread_change_df = regression_score(
+        ch_df       = ch_df,
+        days        = 30,
+        channel_id  = channel_id
+    )
+
+    from utils.estimate_daily_subscribers import estimate_daily_subscribers
+    estimated_daily_subscribers = estimate_daily_subscribers(ch_snap, spread_change_df)
+    st.subheader("예상 일일 구독자 수📈")
+    render_estimated_subscribers_chart(estimated_daily_subscribers)
+    #───────────────────────────────────────────────────────────
+
 
     # Shorts vs Long-form 평균 조회수
     st.header("영상 통계량👑")
@@ -59,7 +72,7 @@ def main():
     col1, col2 = st.columns(2)
     with col1: # 롱폼
         long_metrics, result_L = avg_view_by_days_since_published(
-            ch_df2,
+            ch_df,
             max_days    = 30,
             is_short    = False
         )
@@ -74,14 +87,14 @@ def main():
                     white-space:nowrap;
                 ">Long-form</span> 공개 이후 평균 조회수
                 """, unsafe_allow_html=True)
-        st.metric(label="Long-form 평균 조회수", value=f"{int(avg_views(ch_df2, 10, False)):,}")
+        st.metric(label="Long-form 평균 조회수", value=f"{int(avg_views(ch_df, 10, False)):,}")
         render_avg_views_table(long_metrics)
         render_avg_views_line_chart(result_L, "")
         
     with col2:
         # 숏폼
         short_metrics, result_S = avg_view_by_days_since_published(
-            ch_df2,
+            ch_df,
             max_days    = 30,
             is_short    = True
         )
@@ -95,7 +108,7 @@ def main():
             white-space:nowrap;
         ">Shorts</span> 공개 이후 평균 조회수
         """, unsafe_allow_html=True)
-        st.metric(label="Shorts 평균 조회수", value=f"{int(avg_views(ch_df2, 10, True)):,}")
+        st.metric(label="Shorts 평균 조회수", value=f"{int(avg_views(ch_df, 10, True)):,}")
         render_avg_views_table(short_metrics)
         render_avg_views_line_chart(result_S, "")
     
@@ -103,9 +116,10 @@ def main():
     # 1) per-video Gain Score 계산
     #    반환값: DataFrame with columns ['video_id','gain_score']
     video_gain_df = compute_video_gain_scores(
-        channel_df   = ch_df2,
-        end_subs     = end,
-        total_views  = total_view,
+        channel_df   = ch_df,
+        ch_snap = ch_snap,
+        end_subs     = latest_subs,
+        total_view  = total_view,
         c            = 100.0,
         days         = 14
     )
@@ -114,15 +128,13 @@ def main():
     today_date = datetime.date.today()
     today_str = today_date.isoformat()
     last_run = channel_meta.get("last_run_date")
-    st.caption(f"[DEBUG] {channel_name} last_run: {last_run}, today: {today_str}")
 
     if last_run != today_str:
         if last_run is None:
-            st.write(f"[DEBUG] initial_batch() start for {channel_id} with daily_avg={daily_avg}")
-            initial_batch(ch_df2, result_L, daily_avg)      # 초기 계산 with external daily_avg
+            initial_batch(ch_df, result_L, avg_daily_increase)      # 초기 계산 with external avg_daily_increase
         else:
             st.write(f"[DEBUG] Performing incremental_update for {channel_id}")
-            incremental_update(ch_df2, result_L)          # 일일 업데이트
+            incremental_update(ch_df, result_L)          # 일일 업데이트
         # 메타 갱신 # DB에 last_run_date 없음!!! 비상비상비상비상
         # channel_meta["last_run_date"] = today_str
         # with open(meta_path, "w", encoding="utf-8") as f:
@@ -138,29 +150,19 @@ def main():
     # 1.5) 갱신된 subs_contrib.csv 불러오기
     subs_df = pd.read_csv(SUBS_FILE)  # columns: video_id, subs_contrib
 
-    # 2) 다중이 계산
-    # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib']
-    # 반환값2: DataFrame with columns ['Date','Spread Change']
-    coefficient_df, spread_change_df = regression_score(
-        ch_df       = ch_df2,
-        days        = 30,
-        channel_id  = channel_id
-    )
 
     # 3) 기본이 계산
     final_score_df = compute_gain_score(
-        ch_df1=ch_df2,
+        ch_df=ch_df,
         days=14
     )
     # ──────────────────────────────────────────────────────────
 
     # 최근 영상 Expander
-    st.subheader("최근 영상 상세")
-    
-    st.write(spread_change_df)
+    st.header("최근 영상 상세📹")
 
     # 1) 롱폼/숏폼 필터링 탭
-    tab_all, tab_longs, tab_shorts = st.tabs(["전체영상", "롱폼", "쇼츠"])
+    tab_longs, tab_shorts, tab_all = st.tabs(["롱폼", "쇼츠", "전체영상"])
     
     # 2) 탭별 데이터 필터링 함수
     def filter_by_tab(df, tab_name):
@@ -170,10 +172,10 @@ def main():
             return df[df['is_short'] == False]
         return df
 
-    for tab_name, tab in zip(["전체영상", "쇼츠", "롱폼"], [tab_all, tab_shorts, tab_longs]):
+    for tab_name, tab in zip(["롱폼", "쇼츠", "전체영상"], [tab_longs, tab_shorts, tab_all]):
         with tab:
             # 3) 탭별 필터링
-            sub = filter_by_tab(ch_df2, tab_name)
+            sub = filter_by_tab(ch_df, tab_name)
 
             # 4) 최신 스냅샷 기준으로 video_id별 최신 row만
             update_video = (
@@ -254,7 +256,7 @@ def main():
             for _, row in update_video.iterrows():
                 vid = row["video_id"]
                 # 해당 영상 전체 스냅샷
-                snapshot_df = ch_df2[ch_df2["video_id"] == vid].copy()
+                snapshot_df = ch_df[ch_df["video_id"] == vid].copy()
                 # 올바른 metrics_df 선택
                 metrics_df  = result_S if row["is_short"] else result_L
 
