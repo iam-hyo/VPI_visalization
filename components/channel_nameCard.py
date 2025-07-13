@@ -6,7 +6,7 @@ def img_url_to_base64(url):
     response = requests.get(url)
     return base64.b64encode(response.content).decode()
 
-def render_name_card(channel_meta: dict, channel_id: str, ch_df):
+def render_name_card(channel_meta: dict):
     """
     유튜브 채널 프로필과 채널 정보를 렌더링하는 Streamlit HTML 컴포넌트.
     - channel_meta: 채널 메타 딕셔너리
@@ -14,7 +14,7 @@ def render_name_card(channel_meta: dict, channel_id: str, ch_df):
     - ch_df: 채널 일별 스냅샷 DataFrame (subscriber_count, category 등 컬럼 포함)
     """
     # 1) 프로필 이미지 URL → base64
-    profile_url = channel_meta[channel_id]["profile_image"]
+    profile_url = channel_meta["profile_image"]
     img_base64 = img_url_to_base64(profile_url)
 
     # 2) HTML 템플릿
@@ -23,10 +23,10 @@ def render_name_card(channel_meta: dict, channel_id: str, ch_df):
         <img class="channel-img" src="data:image/jpeg;base64,{img_base64}" alt="채널 이미지">
         <div class="channel-info">
             <div class=Name-tag>
-                <h2 class="channel-name">{channel_meta[channel_id]["channel_title"]}</h2>
-                <p class="handle">{channel_meta[channel_id]["handle"]}</p>
+                <h2 class="channel-name">{channel_meta["title"]}</h2>
+                <p class="handle">{channel_meta["handle"]}</p>
             </div>
-            <p class="category">#{ch_df['category'].iloc[-1]}</p>
+            <p class="category">#{channel_meta['category']}</p>
         </div>
     </div>
 

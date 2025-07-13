@@ -18,7 +18,7 @@ def render_video_card(
     # ─── 2열: 제목+태그 · info · 액션 버튼 ───────────────
     with col2:
         # (1) 제목 + 배지 (HTML로 묶어서 공백 없이)
-        title, badge = row["video_title"], ("Shorts" if row["is_short"] else "Long-form")
+        title, badge = row["title"], ("Shorts" if row["is_short"] else "Long-form")
         color = "#ff5f5f" if row["is_short"] else "#5f9aff"
         st.markdown(
             f'''
@@ -40,7 +40,7 @@ def render_video_card(
         # (2) info 행들: 덜 강조되는 caption으로
         info0, info1, info2 = st.columns([1,1,2])
         info0.caption(f"| 조회수 {row['view_count']:,}회")
-        info1.caption(f"| 공개일 {row['published_at_dt'].strftime('%Y-%m-%d')}")
+        info1.caption(f"| 공개일 {row['published_at'].strftime('%Y-%m-%d')}")
         info2.caption(f"| D+{row['day_since_pub']}일")
         
 

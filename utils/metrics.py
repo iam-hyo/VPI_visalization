@@ -2,52 +2,53 @@
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-from typing import Union
 import streamlit as st
+import re
+from dateutil import parser
+
+today = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
 
 def parse_published_at(series: pd.Series) -> pd.Series:
     """
-    Mixed-format datetime strings → naive datetime in Asia/Seoul.
-
-    Supports two input formats in `series`:
-      1) ISO8601 with Z:   "2025-06-21T10:00:50Z"
-      2) Simple local:     "2025-06-20 17:00"
-
-    Returns
-    -------
-    pd.Series of dtype datetime64[ns], with all times in Asia/Seoul (naive).
+    object, str, int, datetime 혼합 시리즈를 모두 datetime64[ns]로 바꿔줍니다.
+    끝에 붙은 Z나 ±hh:mm 시간대 표시를 제거하고,
+    유닉스 타임스탬프(초)도 파싱, 실패 시 NaT 반환.
     """
-    s = series.astype(str)
+    # 1) 시리즈 복사 & 문자열화
+    s = series.copy()
+    # 날짜/시간 객체는 그대로 두고, 나머지는 str로 변환
+    # (Timestamp → str → 다시 parse되는 비용을 줄이려면 아래 조건문 생략 가능)
+    s_str = s.astype(str).str.strip()
 
-    # 1) ISO8601(Z) 끝나는 항목과 아닌 항목 분리
-    mask_iso = s.str.endswith('Z')
+    # 2) 보이지 않는 제어문자 제거
+    s_clean = s_str.apply(lambda x: re.sub(r"[^\x20-\x7E]", "", x))
 
-    # 2) ISO8601 → UTC-aware → Asia/Seoul → tz-naive
-    dt_iso = (
-        pd.to_datetime(s[mask_iso], utc=True, errors='coerce')
-          .dt.tz_convert('Asia/Seoul')
-          .dt.tz_localize(None)
-    )
+    # 3) 끝에 붙은 Z 또는 ±HH:MM 제거
+    s_clean = s_clean.str.replace(r"(Z|[+-]\d{2}:\d{2})$", "", regex=True)
 
-    # 3) Simple format → naive (assume already Asia/Seoul)
-    dt_simple = pd.to_datetime(
-        s[~mask_iso], 
-        format='%Y-%m-%d %H:%M', 
-        errors='coerce'
-    )
+    # 4) None/nan/NaT → 실제 결측값
+    s_clean = s_clean.replace({"None": None, "nan": None, "NaT": None})
 
-    # 4) 두 결과 합치기
-    result = pd.Series(index=s.index, dtype='datetime64[ns]')
-    result[mask_iso]     = dt_iso
-    result[~mask_iso]    = dt_simple
+    # 5) 숫자(정수/소수) 형태면 유닉스 초로 파싱 시도
+    is_num = s_clean.str.match(r"^\d+(\.\d+)?$").fillna(False)
+    dt_numeric = pd.to_datetime(s_clean[is_num].astype(float), unit="s", errors="coerce")
 
-    # 5) NaT 검사 (선택)  
-    if result.isna().any():
-        missing = series[result.isna()].unique().tolist()
-        import streamlit as st
-        st.warning(f"⚠️ parse_published_at()에서 NaT 발생: {missing}")
+    # 6) 나머지는 일반 문자열 파싱 (dateutil 기반)
+    def _parse(x):
+        try:
+            return parser.parse(x)
+        except Exception:
+            return pd.NaT
 
-    return result
+    dt_strings = s_clean[~is_num].apply(_parse)
+
+    # 7) 합치기 & 모두 datetime64[ns]로
+    dt = pd.Series(index=s_clean.index, dtype="datetime64[ns]")
+    dt.loc[is_num] = dt_numeric.values
+    dt.loc[~is_num] = dt_strings.values
+
+    return dt
+
 
 def format_korean_count(n: int) -> str:
     """
@@ -77,10 +78,9 @@ def format_korean_count(n: int) -> str:
         return f"{n:,}"
     return " ".join(parts)
 
-def get_subscriber_metrics(df: pd.DataFrame, days: int = 10): #10일 이내 구독자 변동성장률 가져옴
-    df = df.sort_values('timestamp') 
-    cutoff = df['timestamp'].max() - timedelta(days=days) #최근 {days}일 전 timestamp
-    recent = df[df['timestamp'] >= cutoff]
+def get_subscriber_metrics(df: pd.DataFrame, days: int = 14): # days일 이내 구독자 변동성장률 가져옴
+    cutoff = today - timedelta(days=days) #최근 {days}일 전 timestamp
+    recent = df[df['published_at'] >= cutoff]
 
     if len(recent) < 2:
         return 0.0, 0.0, 0, 0
@@ -98,7 +98,7 @@ def filter_longforms(df: pd.DataFrame) -> pd.DataFrame:
     return df[df['is_short'] == False]
 
 def avg_view_by_days_since_published(
-    df: pd.DataFrame,
+    ch_df: pd.DataFrame,
     max_days: int = 30,
     is_short: bool = None
 ) -> pd.DataFrame:
@@ -108,20 +108,20 @@ def avg_view_by_days_since_published(
     day별로 영상 평균을 다시 계산해 리턴합니다.
     """
 
-    df = df.copy()
+    ch_df = ch_df.copy()
 
     # 3) 1 <= day <= max_days 필터
-    df = df[(df['day_since_pub'] >= 1) & (df['day_since_pub'] <= max_days)]
+    ch_df = ch_df[(ch_df['day_since_pub'] >= 1) & (ch_df['day_since_pub'] <= max_days)]
 
     # 4) 숏/롱폼 필터링
     if is_short is True:
-        df = df[df['is_short'] == True]
+        ch_df = ch_df[ch_df['is_short'] == True]
     elif is_short is False:
-        df = df[df['is_short'] == False]
+        ch_df = ch_df[ch_df['is_short'] == False]
 
     # 6) (video_id, day)별 snapshot 평균
     grp1 = (
-        df
+        ch_df
         .groupby(['video_id', 'day_since_pub'], as_index=False)
         ['view_count']
         .mean()

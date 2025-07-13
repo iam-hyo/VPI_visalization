@@ -30,11 +30,12 @@ def render_channel_card(channel_id: str, meta: dict, stats: dict):
 
     # 2열: 채널명 (링크)
     with cols[1]:
-        channel_name = meta.get("channel_title", "Unknown Channel")
+        channel_name = meta.get("title", "Unknown Channel")
+        # channel_url = f"/ChannelDetail?channel_id={channel_id}"
         channel_url = f"/ChannelDetail?channel_id={channel_id}"
         st.markdown(f"### [{channel_name}]({channel_url})")
 
-    # 3열: 카테고리 (badge 스타일)
+    # 3열: 카테고리
     with cols[2]:
         category = meta.get("category", "N/A")
         st.metric(label="카테고리", value=f"{category}")
