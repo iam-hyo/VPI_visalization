@@ -1,5 +1,6 @@
 import pandas as pd
 from bs4 import BeautifulSoup
+import chromedriver_autoinstaller
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -10,7 +11,7 @@ from datetime import datetime
 def scrap_subscriber(channel_id: str) -> pd.DataFrame:
     # === CONFIG ===
     URL = f"https://socialcounts.org/youtube-live-subscriber-count/{channel_id}"
-
+    chromedriver_autoinstaller.install()
     # === Start browser ===
     prefs = {
         "profile.managed_default_content_settings.images": 2,
