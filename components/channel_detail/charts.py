@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import altair as alt
 
 def render_avg_views_table(df_metrics):  # 일차별 평균조회수 테이블
     """
@@ -46,8 +45,6 @@ def render_avg_views_line_chart(df_metrics, title: str = ""):
 
 def render_estimated_subscribers_chart(df: pd.DataFrame) -> None:
     # Plotly Express를 사용해 일별 추정 구독자수를 라인 차트로 렌더링 (매일 포인트 포함)
-    import plotly.express as px
-    import pandas as pd
 
     df_plot = df.copy()
     df_plot['Date'] = pd.to_datetime(df_plot['Date'])
@@ -67,13 +64,14 @@ def render_estimated_subscribers_chart(df: pd.DataFrame) -> None:
     # x축: MM월DD일 포맷, 라벨 각도
     fig.update_xaxes(
         tickformat='%m월%d일',
-        tickangle=-45,
-        title_text='날짜'
-    )
+        tickangle=0,
+        title_text=''
+        )
     # y축: 범위 설정 및 제목
     fig.update_yaxes(
         range=[y_min, y_max],
-        title_text='구독자 수'
+        title_text='구독자 수',
+        tickformat=',.0f',
     )
     # 범례 제거
     fig.update_layout(showlegend=False)

@@ -50,7 +50,7 @@ def main():
     )
     #───────────────────────────────────────────────────────────
 
-      # 2) 다중이 계산
+    # 2) 다중이 계산
     # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib']
     # 반환값2: DataFrame with columns ['Date','Spread Change']
     coefficient_df, spread_change_df = regression_score(
@@ -61,7 +61,7 @@ def main():
 
     from utils.estimate_daily_subscribers import estimate_daily_subscribers
     estimated_daily_subscribers = estimate_daily_subscribers(ch_snap, spread_change_df)
-    st.subheader("예상 일일 구독자 수📈")
+    st.header("예상 일일 구독자 수📈")
     render_estimated_subscribers_chart(estimated_daily_subscribers)
     #───────────────────────────────────────────────────────────
 

@@ -82,10 +82,10 @@ def preprocess_channel_data(
     return merged
 
 
-def estimate_daily_subscribers(
-    ch_snap: pd.DataFrame,
-    spread_change_df: pd.DataFrame
-) -> pd.DataFrame:
+def estimate_daily_subscribers(  
+    ch_snap: pd.DataFrame,       
+    spread_change_df: pd.DataFrame 
+) -> pd.DataFrame:               
     """
     일별 구독자수를 추정하여 반환합니다.
 
@@ -97,68 +97,56 @@ def estimate_daily_subscribers(
     반환: DataFrame with ['Date','Estimated Subscribers']
     확실한 제약조건을 지키며, 단순합이 이를 벗어날 경우 보정치를 적용합니다.
     """
+    # 1–4: 함수 시그니처와 타입 힌트; 두 개의 DataFrame 입력을 받아 하나의 DataFrame을 반환
+
     # 1) ch_snap 전처리: 날짜 및 계단식 구독수 구간
-    snap = ch_snap.copy()
-    snap['Date'] = parse_published_at(snap['collected_at']).dt.date
+    snap = ch_snap.copy()                                           
+    snap['Date'] = parse_published_at(snap['collected_at']).dt.date 
+
     # 계단값: 만단위로 기록된 subscriber_count
 
     # 2) spread_change_df 전처리: 날짜 및 일별 변화량
-    spread = spread_change_df.copy()
-    spread['Date'] = pd.to_datetime(spread['Date']).dt.date
-    spread = spread.set_index('Date')
+    spread = spread_change_df.copy()                              # 7: spread_change_df 복사
+    spread['Date'] = pd.to_datetime(spread['Date']).dt.date       # 8: 문자열인 'Date' 컬럼을 datetime → date 타입으로 변환
+    spread = spread.set_index('Date')                             # 9: date를 인덱스로 설정
 
     # 3) 날짜 인덱스 범위
-    all_dates = pd.date_range(
-        start=min(snap['Date'].min(), spread.index.min()),
-        end=max(snap['Date'].max(), spread.index.max()),
-        freq='D'
-    ).date
+    all_dates = pd.date_range(                                     # 10: 모든 날짜 범위 생성
+        start=min(snap['Date'].min(), spread.index.min()),         # 11: 입력들 중 가장 이른 날짜
+        end=max(snap['Date'].max(), spread.index.max()),           # 12: 입력들 중 가장 늦은 날짜
+        freq='D'                                                   # 13: 일 단위 빈도
+    ).date                                                        
 
     # 4) 초기 estimated Series 생성
-    est = pd.Series(index=all_dates, dtype=float)
+    est = pd.Series(index=all_dates, dtype=float)                 # 15: 모든 날짜에 대한 빈(NA) Series 준비
 
     # 5) snap에서 계단 제약: 각 측정일에만 known count
-    known = snap.drop_duplicates('Date').set_index('Date')['subscriber_count']
+    known = snap.drop_duplicates('Date').set_index('Date')['subscriber_count']  # 16: 하루에 하나씩 중복 제거 후 인덱스 설정
+    known = known[ known.ne(known.shift()) ]  # 17: 연속된 값이 같은 경우(계단이 없는 경우) 제거 → 계단 변화 지점만 남김
 
     # 6) spread change에서 일별 증가량
-    deltas = spread['Spread Change'].reindex(all_dates).fillna(0)
+    deltas = spread['Spread Change'].reindex(all_dates).fillna(0)  # 18: all_dates에 맞춰 재인덱싱, NaN은 0으로 채움
 
-    # 7) 누적 적용하며 제약 검증
+    # 7) 일별 누적 추정 (계단 제약 무시, known 날짜에서만 값 고정)
     prev_est = None
     for date in all_dates:
-        if date in known.index:
-            # 측정된 계단값
-            lower = known.loc[date]
-            upper = lower + 1  # 만단위, +1만 이하 구독자
-            # 기본값 설정
-            est.loc[date] = lower
-            prev_est = est.loc[date]
-        else:
-            # spread 적용
-            delta = deltas.loc[date]
-            if prev_est is None:
-                # 시작 전에 측정데이터가 없으면 0으로 시작
-                prev_est = 0.0
-            nominal = prev_est + delta
-            # 제약조건: between 최근 lower and upper
-            # 찾을 수 있는 가장 가까운 이전 known
-            prev_known_date = known.index[known.index < date]
-            if len(prev_known_date) > 0:
-                base_date = prev_known_date.max()
-                base = known.loc[base_date]
-                low = base
-                high = base + 1
-                # 보정
-                est.loc[date] = min(max(nominal, low), high)
-            else:
-                # 아직 첫 측정 전
-                est.loc[date] = nominal if nominal >= 0 else 0
-            prev_est = est.loc[date]
+        delta = deltas.loc[date]              # 오늘의 증가량
+        if date in known.index:               # 만단위로 측정된 날이면
+            est.loc[date] = known.loc[date]   # 실제 값을 그대로 사용
+            prev_est = est.loc[date]          # 누적 기준 갱신
+        else:                                 # 측정 없는 날에는
+            if prev_est is None:             # 아직 시작 전이면
+                prev_est = 0.0               # 0부터 누적 시작
+            est.loc[date] = prev_est + delta  # 단순 누적
+            prev_est = est.loc[date]          # prev_est 갱신
+
+    # st.caption("[DEBUG] estimate_daily_subscribers -> estimated daily subscribers:")
+    # st.dataframe(est, use_container_width=True)  # 40: 추정 구독자 수를 Streamlit 데이터프레임으로 표시
 
     # 8) 결과 DataFrame
-    result = est.reset_index()
-    result.columns = ['Date', 'Estimated Subscribers']
-    return result
+    result = est.reset_index()                                     # 41: Series → DataFrame
+    result.columns = ['Date', 'Estimated Subscribers']             # 42: 컬럼명 지정
+    return result                                                  # 43: 최종 반환
 
 
 #---
