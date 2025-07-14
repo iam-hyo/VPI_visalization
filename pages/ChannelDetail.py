@@ -136,11 +136,6 @@ def main():
         else:
             st.write(f"[DEBUG] Performing incremental_update for {channel_id}")
             incremental_update(ch_df, result_L)          # 일일 업데이트
-        # 메타 갱신 # DB에 last_run_date 없음!!! 비상비상비상비상
-        # channel_meta["last_run_date"] = today_str
-        # with open(meta_path, "w", encoding="utf-8") as f:
-        #     json.dump(channel_meta, f, ensure_ascii=False, indent=2)
-        st.write(f"[DEBUG] Saved last_run_date={today_str} for {channel_id}")
     else:
         st.write(f":white_check_mark: Channel {channel_id} subs_contrib already updated today.")
 
