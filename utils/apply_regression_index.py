@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import nnls
-from utils.sub_scrapper1 import scrap_subscriber
 
 def regression_score(
     ch_df: pd.DataFrame,
@@ -11,7 +10,16 @@ def regression_score(
 ):
     long_df = ch_df[ch_df['is_short'] == False].copy()
     long_df["timestamp"] = pd.to_datetime(long_df["timestamp"], utc=True)
-    sub_scrap = scrap_subscriber(channel_id)
+
+    # get subscriber info
+    ch_df = ch_df[ch_df['thumbnail_url'].notna() & (ch_df['thumbnail_url'] != '')]
+    sub_scrap = ch_df[['timestamp', 'subscriber_count']].copy()
+    sub_scrap['Date'] = pd.to_datetime(sub_scrap['timestamp']).dt.date
+    sub_scrap = sub_scrap.groupby('Date', as_index=False)['subscriber_count'].max()
+    sub_scrap["Daily Subscribers"] = sub_scrap["subscriber_count"].diff().fillna(0).astype(int)
+    sub_scrap["isChange"] = sub_scrap["Daily Subscribers"] != 0
+    # use this line to check
+    sub_scrap.to_csv("data/daily.csv", index=False)
 
     # Pivot cumulative views (timestamp × video_id)
     pivot_df = long_df.pivot_table(
@@ -41,9 +49,6 @@ def regression_score(
     daily_views_df = diff.fillna(0).clip(lower=0).astype(int) #replace it to upper line after corrected
     daily_views_df.index = pd.to_datetime(daily_views_df.index)
     daily_views_df["Date"] = daily_views_df.index.date
-
-    # use this line to check
-    # daily_views_df.to_csv("data/daily.csv", index=False)
 
     # Group by calendar day
     grouped_views = daily_views_df.groupby("Date").sum()
