@@ -123,30 +123,41 @@ def aggregate_views_within_days(
 
 
 def compute_channel_gain_index(
-    df: pd.DataFrame,
+    ch_long_df: pd.DataFrame,
     r0: float,
     days: int = 14,
-    daily_avg: float = None
+    daily_avg: float = None,
+    estimated_daily_subscribers: pd.DataFrame = None
 ) -> float:
     """
     채널 수준의 GainIndex를 계산합니다.
     """
-    df_sorted = df.sort_values('timestamp')
+    df_sorted = ch_long_df.sort_values('timestamp')
     # st.write("[DEBUG] channel_gain -> total snaps:", len(df_sorted))
 
-    # 구독자 변화량 ΔS
-    if daily_avg is not None:
-        delta_subs = daily_avg * days
+   # 2) ΔS (구독자 변화량) 계산
+    if estimated_daily_subscribers is not None:
+        # Date 컬럼을 datetime으로 변환
+        est = estimated_daily_subscribers.copy()
+        est['Date'] = pd.to_datetime(est['Date'])
+        # 분석 기간의 끝과 시작 구하기
+        max_time = df_sorted['timestamp'].max().normalize()
+        start_time = (max_time - timedelta(days=days)).normalize()
+        # 해당 기간에 해당하는 일자 필터링
+        mask = (est['Date'] >= start_time) & (est['Date'] <= max_time)
+        recent_est = est.loc[mask, 'Estimated Subscribers']
+        if recent_est.empty:
+            return 0.0
+        delta_subs = recent_est.sum()
+
     else:
+        # 원본 스냅샷으로부터 직접 계산
         max_time = df_sorted['timestamp'].max()
         start_time = max_time - timedelta(days=days)
         recent = df_sorted[df_sorted['timestamp'] >= start_time]
-        # st.write("[DEBUG] channel_gain -> recent snaps:", len(recent))
         if len(recent) < 2:
-            # st.write("[DEBUG] channel_gain -> insufficient snapshots")
             return 0.0
         delta_subs = recent['subscriber_count'].iloc[-1] - recent['subscriber_count'].iloc[0]
-    # st.write("[DEBUG] channel_gain -> ΔS:", float(delta_subs))
 
     # 조회수 변화량 합계
     delta_views = aggregate_views_within_days(df_sorted, days)
@@ -167,6 +178,7 @@ def compute_channel_gain_index(
 def compute_video_gain_scores(
     channel_df: pd.DataFrame,
     ch_snap: pd.DataFrame,
+    estimated_daily_subscribers: pd.DataFrame,
     end_subs: int,
     total_view: int,
     c: float = 100.0,
@@ -176,23 +188,24 @@ def compute_video_gain_scores(
     1) preprocess_channel_data 호출
     2) 영상별 Gain Score 계산
     """
-    # 1) 전처리
-    merged_df = preprocess_channel_data(channel_df, ch_snap)
+    # 1) channel_df와 ch_snap을 날짜 기준으로 병합하여 subscriber_count를 업데이트.
+    ch_df = preprocess_channel_data(channel_df, ch_snap)
 
     # 2) 롱폼 필터링 및 r0 계산
-    long_df = merged_df[merged_df['is_short'] == False].copy()
+    ch_long_df = ch_df[ch_df['is_short'] == False].copy()
     r0_baseline = (end_subs / total_view) / np.log(end_subs * 0.5 + c) if total_view > 0 else 0.0
     # st.write("[DEBUG] compute_video_gain -> r0_baseline:", float(r0_baseline))
 
     # 3) GainIndex
     gain_index = compute_channel_gain_index(
-        df=long_df,
+        ch_long_df=ch_long_df,
         r0=r0_baseline,
-        days=days
+        days=days,
+        estimated_daily_subscribers=estimated_daily_subscribers
     )
     
     # 4) 영상별 조회수 변화량 및 가중치
-    delta_views = aggregate_views_within_days(long_df, days)
+    delta_views = aggregate_views_within_days(ch_long_df, days)
     total_views_long = delta_views.sum()
     weights = delta_views / total_views_long if total_views_long > 0 else pd.Series(0, index=delta_views.index)
     # st.write("[DEBUG] compute_video_gain -> weights:", weights.head())

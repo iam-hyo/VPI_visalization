@@ -60,7 +60,7 @@ def main():
     )
 
     from utils.estimate_daily_subscribers import estimate_daily_subscribers
-    estimated_daily_subscribers = estimate_daily_subscribers(ch_snap, spread_change_df)
+    estimated_daily_subscribers = estimate_daily_subscribers(ch_snap, spread_change_df) # ['Date', 'Estimated Subscribers'] 
     st.header("예상 일일 구독자 수📈")
     render_estimated_subscribers_chart(estimated_daily_subscribers)
     #───────────────────────────────────────────────────────────
@@ -118,6 +118,7 @@ def main():
     video_gain_df = compute_video_gain_scores(
         channel_df   = ch_df,
         ch_snap = ch_snap,
+        estimated_daily_subscribers = estimated_daily_subscribers,
         end_subs     = latest_subs,
         total_view  = total_view,
         c            = 100.0,
