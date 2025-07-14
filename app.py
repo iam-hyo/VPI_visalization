@@ -102,7 +102,7 @@ with main:
     if search_query:
         filtered_ids = [
             cid for cid in filtered_ids
-            if search_query in channel_meta[cid]["channel_title"].lower()
+            if search_query in channel_meta[cid]["title"].lower()
             or search_query in channel_meta[cid].get("channel_description", "").lower()
             or search_query in channel_meta[cid].get("handle", "").lower()
         ]
