@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
+import numpy as np
 
 def render_video_card(
     row: pd.Series,
@@ -102,9 +103,21 @@ def render_video_card(
                     white-space:nowrap;
                 ">기본이 지표</span>
                 """, unsafe_allow_html=True)
-            st.metric(label="Gain index", value=f"{row.get('gain_score2', 0):.2f}")
-            st.metric(label='추정 구독자 기여', value=f"{row.get('estimated_subs', 0):.1f}명")
-            st.metric(label="Retention index", value=f"{row.get('retention_score', 0):.2f}")
+
+            def safe_metric(val, float_fmt="{:.2f}", suffix=""):
+                if isinstance(val, (int, float, np.floating)) and not pd.isna(val):
+                    # 값이 0일 때도 보여주려면 pd.isna(val)만 체크 (0도 허용)
+                    return float_fmt.format(val) + suffix
+                return "N/A" + suffix
+
+            # 예시 row에서 값 추출
+            gain_val = row.get('gain_score2', None)
+            est_val = row.get('estimated_subs', None)
+            ret_val = row.get('retention_score', None)
+
+            st.metric(label="Gain index", value=safe_metric(gain_val, "{:.2f}"))
+            st.metric(label='추정 구독자 기여', value=safe_metric(est_val, "{:.1f}", "명"))
+            st.metric(label="Retention index", value=safe_metric(ret_val, "{:.2f}"))
 
         with index2:
             st.markdown(f"""

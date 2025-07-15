@@ -142,5 +142,7 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
         'estimated_subs': est_subs_by_video_total,
         'gain_score2': gain_score1
     }).reset_index(drop=True)
+    result_df = result_df.replace(0, np.nan)
+    result_df = result_df.fillna("N/A")
 
     return result_df
