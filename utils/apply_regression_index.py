@@ -1,15 +1,12 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
 from scipy.optimize import nnls
+# from sklearn.linear_model import LinearRegression
 
 def regression_score(
     ch_df: pd.DataFrame,
     days: int = 14,
-    channel_id: str = None
 ):
-    long_df = ch_df[ch_df['is_short'] == False].copy()
-    long_df["timestamp"] = pd.to_datetime(long_df["timestamp"], utc=True)
 
     # get subscriber info
     ch_df = ch_df[ch_df['thumbnail_url'].notna() & (ch_df['thumbnail_url'] != '')]
@@ -22,6 +19,9 @@ def regression_score(
     sub_scrap.to_csv("data/daily.csv", index=False)
 
     # Pivot cumulative views (timestamp × video_id)
+    long_df = ch_df[ch_df['is_short'] == False].copy()
+    long_df["timestamp"] = pd.to_datetime(long_df["timestamp"], utc=True)
+    long_df["published_at"] = pd.to_datetime(long_df["published_at"], utc=True)
     pivot_df = long_df.pivot_table(
         index="timestamp",
         columns="video_id",
@@ -138,21 +138,39 @@ def regression_score(
     # Fit model
     # model = LinearRegression()
     # model.fit(X, y)
-    raw_betas, _ = nnls(X_np, y_np)
-
     # raw_betas = model.coef_
+    raw_betas, _ = nnls(X_np, y_np)
     beta_total = raw_betas.sum()
-
     if beta_total != 0:
         normalized_betas = raw_betas / beta_total
     else:
         normalized_betas = np.zeros_like(raw_betas)
 
+    # Gain Index
+    beta_mean = raw_betas.mean()
+    gain_betas = raw_betas / beta_mean
+
+    # Retention Index
+    long_df['days_since_pub'] = (long_df['timestamp'] - long_df['published_at']).dt.days
+    long_df = long_df.sort_values(['video_id', 'timestamp'])
+    long_df['view_gain'] = long_df.groupby('video_id')['view_count'].diff().fillna(0)
+    N = 2 # days
+    early_views = long_df[long_df['days_since_pub'] <= N].groupby('video_id')['view_gain'].sum()
+    total_views = long_df.groupby('video_id')['view_gain'].sum()
+    retention_df = pd.DataFrame({
+        'early_views': early_views,
+        'total_views': total_views
+    }).fillna(0)
+    retention_df['retention_index'] = retention_df['early_views'] / retention_df['total_views']
+    retention_df = retention_df.fillna(0)
+    retention_index_df = retention_df[['retention_index']].reset_index()
+
     regression_results = pd.DataFrame({
         "video_id": X.columns,
-        "βᵢ / β_total": normalized_betas,
+        "βᵢ / β_mean": gain_betas,
         "regression_subs_contrib": np.nan_to_num(normalized_betas * y.sum())
     })
+    regression_results = regression_results.merge(retention_index_df, on="video_id", how="left")
 
     spread_change_df = merged_df[["Date", "Spread Change"]].copy()
     return regression_results, spread_change_df

@@ -51,12 +51,11 @@ def main():
     #───────────────────────────────────────────────────────────
 
     # 2) 다중이 계산
-    # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib']
+    # 반환값: DataFrame with columns ['video_id','βᵢ / β_total', 'regression_subs_contrib', 'retention_index']
     # 반환값2: DataFrame with columns ['Date','Spread Change']
     coefficient_df, spread_change_df = regression_score(
         ch_df       = ch_df,
-        days        = 30,
-        channel_id  = channel_id
+        days        = 30
     )
 
     from utils.estimate_daily_subscribers import estimate_daily_subscribers
