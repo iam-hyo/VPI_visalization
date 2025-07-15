@@ -130,8 +130,12 @@ def render_video_card(
                     white-space:nowrap;
                 ">다중이 지표</span>
                 """, unsafe_allow_html=True)
-            st.metric("Gain Index", f"{row.get('βᵢ / β_mean', 0):.2f}")
-            st.metric("추정 구독자 기여", f"{row['regression_subs_contrib']:.1f}명")
-            st.metric("Retain Index", f"{row.get('retention_index', 0):.2f}")
+            gain = row.get("βᵢ / β_mean", "N/A")
+            contrib = row.get("regression_subs_contrib", "N/A")
+            retain = row.get("retention_index", 0)
+
+            st.metric("Gain Index", f"{gain:.2f}" if isinstance(gain, (int, float)) else str(gain))
+            st.metric("추정 구독자 기여", f"{contrib:.1f}명" if isinstance(contrib, (int, float)) else str(contrib))
+            st.metric("Retain Index", f"{retain:.2f}")
 
     st.write("---")

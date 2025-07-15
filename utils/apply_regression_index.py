@@ -139,15 +139,18 @@ def regression_score(
     # model = LinearRegression()
     # model.fit(X, y)
     # raw_betas = model.coef_
+    all_zero_mask = (X_np == 0).all(axis=0)
     raw_betas, _ = nnls(X_np, y_np)
-    beta_total = raw_betas.sum()
+    raw_betas = np.where(all_zero_mask, np.nan, raw_betas)
+
+    beta_total = np.nansum(raw_betas)
     if beta_total != 0:
         normalized_betas = raw_betas / beta_total
     else:
         normalized_betas = np.zeros_like(raw_betas)
 
     # Gain Index
-    beta_mean = raw_betas.mean()
+    beta_mean = np.nanmean(raw_betas)
     gain_betas = raw_betas / beta_mean
 
     # Retention Index
@@ -168,8 +171,15 @@ def regression_score(
     regression_results = pd.DataFrame({
         "video_id": X.columns,
         "βᵢ / β_mean": gain_betas,
-        "regression_subs_contrib": np.nan_to_num(normalized_betas * y.sum())
+        "regression_subs_contrib": normalized_betas * y.sum()
     })
+    regression_results = regression_results.astype(object)
+    regression_results["βᵢ / β_mean"] = regression_results["βᵢ / β_mean"].apply(
+        lambda x: "N/A" if pd.isna(x) else round(x, 2)
+    )
+    regression_results["regression_subs_contrib"] = regression_results["regression_subs_contrib"].apply(
+        lambda x: "N/A명" if pd.isna(x) else int(round(x, 1))
+    )
     regression_results = regression_results.merge(retention_index_df, on="video_id", how="left")
 
     spread_change_df = merged_df[["Date", "Spread Change"]].copy()
