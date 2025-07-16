@@ -30,7 +30,7 @@ def main():
 
     ch_df = get_channel_video_snapshots(channel_id)
     # channel_id | video_id | title | published_at | is_short | thumbnail_url | timestamp | subscriber_count | day_since_pub | comment_count | like_count | view_count
-    
+    #ch_df.to_csv("data/ch_df.csv",index=False)
     ch_snap = fetch_channel_snapshots(channel_id).sort_values("collected_at")
     # ch_snap["collected_at"] = pd.to_datetime(ch_snap["collected_at"], utc=True, format='mixed').dt.date
     # ch_snap.to_csv("data/temp.csv", index=False)
@@ -147,7 +147,8 @@ def main():
     # 3) 기본이 계산
     final_score_df = compute_gain_score(
         ch_df=ch_df,
-        days=14
+        ch_snap=ch_snap,
+        days=30
     )
     # ──────────────────────────────────────────────────────────
 

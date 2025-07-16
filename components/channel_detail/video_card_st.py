@@ -105,8 +105,8 @@ def render_video_card(
                 """, unsafe_allow_html=True)
 
             def safe_metric(val, float_fmt="{:.2f}", suffix=""):
-                if isinstance(val, (int, float, np.floating)) and not pd.isna(val):
-                    # 값이 0일 때도 보여주려면 pd.isna(val)만 체크 (0도 허용)
+                # 0도 N/A로 처리하려면 아래처럼
+                if isinstance(val, (int, float, np.floating)) and not pd.isna(val) and val != 0:
                     return float_fmt.format(val) + suffix
                 return "N/A" + suffix
             st.metric(label="Gain index", value=safe_metric(row.get('gain_score2')))

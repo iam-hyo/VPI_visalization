@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
+def compute_gain_score(ch_df: pd.DataFrame, ch_snap: pd.DataFrame, days: int = 30) -> pd.DataFrame:
     # ---------- 날짜 정리 ----------
     ch_df['timestamp'] = pd.to_datetime(
         ch_df['timestamp'], utc=True, errors='coerce'
@@ -68,24 +68,16 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
         .fillna(0)
     )
 
-    # ---------- 구독자 테이블 구성 ----------
-    subs_df = (
-        video_df
-        .sort_values('timestamp')
-        .drop_duplicates('timestamp')[['timestamp', 'subscriber_count']]
-        .dropna()
-        .sort_values('timestamp')
-    )
-
-    # ---------- 실제 구독자 변화량(subs_diff) 계산 ----------
-    if not subs_df.empty:
-        subs_diff = subs_df['subscriber_count'].iloc[-1] - subs_df['subscriber_count'].iloc[0]
+    # ---------- subs_diff만 ch_snap에서 불러옴 ----------
+    ch_snap = ch_snap.sort_values('collected_at')
+    if not ch_snap.empty:
+        subs_diff = ch_snap['subscriber_count'].iloc[-1] - ch_snap['subscriber_count'].iloc[0]
     else:
         subs_diff = 0
 
     # ---------- 조회수 변화량 합계로 날짜별 구독자 분배 ----------
-    date_totals = views_diff.sum(axis=0)  # 각 날짜별 조회수 변화 합
-    sum_views = date_totals.sum()         # 전체 구간의 총 조회수 변화량
+    date_totals = views_diff.sum(axis=0)
+    sum_views = date_totals.sum()
     if sum_views > 0:
         daily_estimated_subs = date_totals / sum_views * subs_diff
     else:
@@ -110,7 +102,7 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
     # ---------- Gain Index: estimated_subs Min-Max 정규화 ----------
     es = est_subs_by_video_total
     if es.max() > es.min():
-        gain_score1 = (es - es.min()) / (es.max() - es.min())*2
+        gain_score1 = (es - es.min()) / (es.max() - es.min()) * 1.8 + 0.2
     else:
         gain_score1 = pd.Series(2.0, index=es.index)
 
@@ -121,5 +113,9 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
         'estimated_subs': est_subs_by_video_total,
         'gain_score2': gain_score1
     }).reset_index(drop=True)
+    result_df['estimated_subs'] = result_df['estimated_subs'].replace(0, np.nan)
+    result_df['gain_score2'] = result_df['gain_score2'].replace(0, np.nan)
 
+    # NaN을 'N/A' 문자열로 변환
+    result_df = result_df.astype(object).where(result_df.notnull(), 'N/A')
     return result_df
