@@ -1,7 +1,7 @@
 import os                                      # 파일 존재 여부 확인
 import pandas as pd                            # CSV 입출력
-from utils.subscriber_contrib import compute_video_subscriber_contributions
-from utils.daily_contrib import compute_daily_video_subscriber_contributions_for_day
+from utils.conversion_Index.subscriber_contrib import compute_video_subscriber_contributions
+from utils.conversion_Index.daily_contrib import compute_daily_video_subscriber_contributions_for_day
 from utils.metrics import get_subscriber_metrics
 
 # CSV 파일 경로 (전체 채널+영상 데이터)

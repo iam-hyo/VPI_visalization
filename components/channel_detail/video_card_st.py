@@ -84,13 +84,13 @@ def render_video_card(
                     border-radius:4px;
                     font-size:0.9em;
                     white-space:nowrap;
-                ">응용이 지표</span>
+                ">전환율 기반</span>
                 """, unsafe_allow_html=True)
             retain = row['view_count'] / row['expected_views'] if row['expected_views'] else "-"
             subs_contrib = float(row["subs_contrib"])   
             st.metric("Gain Index", f"{row.get('gain_score', 0):.2f}")
-            st.metric("추정 구독자 기여", f"{subs_contrib:.1f}명")     
-            st.metric("Retain Index", f"{retain:.2f}" if isinstance(retain, (int, float)) else "-")
+            st.metric("추정 구독자 증분", f"{subs_contrib:.1f}명")     
+            st.metric("Retention index", f"{retain:.2f}" if isinstance(retain, (int, float)) else "-")
 
         with index1:
             st.markdown(f"""
@@ -101,7 +101,7 @@ def render_video_card(
                     border-radius:4px;
                     font-size:0.9em;
                     white-space:nowrap;
-                ">기본이 지표</span>
+                ">조회수 기반</span>
                 """, unsafe_allow_html=True)
 
             def safe_metric(val, float_fmt="{:.2f}", suffix=""):
@@ -116,7 +116,7 @@ def render_video_card(
             ret_val = row.get('retention_score', None)
 
             st.metric(label="Gain index", value=safe_metric(gain_val, "{:.2f}"))
-            st.metric(label='추정 구독자 기여', value=safe_metric(est_val, "{:.1f}", "명"))
+            st.metric(label='추정 구독자 증분', value=safe_metric(est_val, "{:.1f}", "명"))
             st.metric(label="Retention index", value=safe_metric(ret_val, "{:.2f}"))
 
         with index2:
@@ -128,14 +128,14 @@ def render_video_card(
                     border-radius:4px;
                     font-size:0.9em;
                     white-space:nowrap;
-                ">다중이 지표</span>
+                ">회귀 기반</span>
                 """, unsafe_allow_html=True)
             gain = row.get("βᵢ / β_mean", "N/A")
             contrib = row.get("regression_subs_contrib", "N/A")
             retain = row.get("retention_index", 0)
 
             st.metric("Gain Index", f"{gain:.2f}" if isinstance(gain, (int, float)) else str(gain))
-            st.metric("추정 구독자 기여", f"{contrib:.1f}명" if isinstance(contrib, (int, float)) else str(contrib))
-            st.metric("Retain Index", f"{retain:.2f}")
+            st.metric("추정 구독자 증분", f"{contrib:.1f}명" if isinstance(contrib, (int, float)) else str(contrib))
+            st.metric("Retention index", f"{retain:.2f}")
 
     st.write("---")
