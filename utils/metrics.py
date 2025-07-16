@@ -148,7 +148,7 @@ def avg_view_by_days_since_published(
         grp1
         .groupby('day_since_pub', as_index=False)
         ['video_day_avg'].mean()
-        .rename(columns={'day_since_pub': 'day', 'video_day_avg': 'avg_view_count'})
+        .rename(columns={'day_since_pub': 'day', 'video_day_avg': 'cumulative_view_count'})
     )
 
     # all_days 생성 & merge
@@ -156,23 +156,23 @@ def avg_view_by_days_since_published(
     result = all_days.merge(grp2, on='day', how='left')
 
     # 누락값 보간 & 앞뒤 채우기
-    result['avg_view_count'] = (
-    result['avg_view_count']
-        .interpolate(method='linear')
-        .bfill()
-        .ffill()
-        .fillna(0)
-        .round(0)
-        .astype(int)
-    )
+    result['cumulative_view_count'] = (
+        result['cumulative_view_count']
+            .interpolate(method='linear')
+            .bfill()
+            .ffill()
+            .fillna(0)
+            .round(0)
+            .astype(int)
+        )
 
-    arr = result['avg_view_count']
-    result['avg_view_count'] = arr.round(0).astype(int)
+    arr = result['cumulative_view_count']
+    result['cumulative_view_count'] = arr.round(0).astype(int)
 
     # pivot & 컬럼명 변경
-    pivot = result.set_index('day')['avg_view_count'].to_frame().T
+    pivot = result.set_index('day')['cumulative_view_count'].to_frame().T
     pivot.columns = [f"{d}일차" for d in result['day']]
-    pivot.index = ['평균조회수']
+    pivot.index = ['누적 평균 조회수']
 
     return pivot, result
 

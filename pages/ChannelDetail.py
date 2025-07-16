@@ -60,13 +60,13 @@ def main():
 
     from utils.estimate_daily_subscribers import estimate_daily_subscribers
     estimated_daily_subscribers = estimate_daily_subscribers(ch_snap, spread_change_df) # ['Date', 'Estimated Subscribers'] 
-    st.header("예상 일일 구독자 수📈")
+    st.header("구독자 수 추이📈")
     render_estimated_subscribers_chart(estimated_daily_subscribers)
     #───────────────────────────────────────────────────────────
 
 
     # Shorts vs Long-form 평균 조회수
-    st.header("영상 통계량👑")
+    st.header("누적 평균 조회수👑")
 
     col1, col2 = st.columns(2)
     with col1: # 롱폼
@@ -84,9 +84,9 @@ def main():
                     border-radius:4px;
                     font-size:0.9em;
                     white-space:nowrap;
-                ">Long-form</span> 공개 이후 평균 조회수
+                ">Long-form</span> 공개 이후 일자별 기대 조회수
                 """, unsafe_allow_html=True)
-        st.metric(label="Long-form 평균 조회수", value=f"{int(avg_views(ch_df, 10, False)):,}")
+        # st.metric(label="Long-form 평균 조회수", value=f"{int(avg_views(ch_df, 10, False)):,}")
         render_avg_views_table(long_metrics)
         render_avg_views_line_chart(result_L, "")
         
@@ -105,9 +105,9 @@ def main():
             border-radius:4px;
             font-size:0.9em;
             white-space:nowrap;
-        ">Shorts</span> 공개 이후 평균 조회수
+        ">Shorts</span> 공개 이후 일자별 기대 조회수
         """, unsafe_allow_html=True)
-        st.metric(label="Shorts 평균 조회수", value=f"{int(avg_views(ch_df, 10, True)):,}")
+        # st.metric(label="Shorts 평균 조회수", value=f"{int(avg_views(ch_df, 10, True)):,}")
         render_avg_views_table(short_metrics)
         render_avg_views_line_chart(result_S, "")
     
@@ -154,7 +154,7 @@ def main():
     # ──────────────────────────────────────────────────────────
 
     # 최근 영상 Expander
-    st.header("최근 영상 상세📹")
+    st.header("영상 퍼포먼스 분석 📹")
 
     # 1) 롱폼/숏폼 필터링 탭
     tab_longs, tab_shorts, tab_all = st.tabs(["롱폼", "쇼츠", "전체영상"])
@@ -225,8 +225,8 @@ def main():
                 update_video = update_video.sort_values('gain_score', ascending=False)
             
             #여기에 칼럼 업데이트-------------------------------------------------------
-            map_L = result_L.set_index('day')['avg_view_count'].to_dict()
-            map_S = result_S.set_index('day')['avg_view_count'].to_dict()
+            map_L = result_L.set_index('day')['cumulative_view_count'].to_dict()
+            map_S = result_S.set_index('day')['cumulative_view_count'].to_dict()
             # 2) update_video DataFrame 준비
 
             # 3) 기본은 Long-form 맵으로 채우고

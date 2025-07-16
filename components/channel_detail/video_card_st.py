@@ -68,11 +68,11 @@ def render_video_card(
                            .mean()
                            .rename("actual")
             )
-            df_exp = metrics_df.set_index("day")["avg_view_count"].rename("expected")
+            df_exp = metrics_df.set_index("day")["cumulative_view_count"].rename("expected")
             df_plot = pd.concat([df_act, df_exp], axis=1).ffill()
             st.line_chart(df_plot, use_container_width=True)
 
-    # ─── 3열: 지표 ─────────────────────────
+    # ───── 3열: 지표 ─────────────────────────
     with col3:
         index0, index1, index2 = st.columns(3)
         with index0:
