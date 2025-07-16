@@ -1,5 +1,5 @@
 import pandas as pd  # 데이터프레임 처리
-from utils.apply_hyojun_index import aggregate_views_within_days
+from utils.conversion_Index.apply_hyojun_index import aggregate_views_within_days
 from utils.metrics import parse_published_at
 
 def compute_video_subscriber_contributions(

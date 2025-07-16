@@ -5,10 +5,10 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
     # ---------- 날짜 정리 ----------
     ch_df['timestamp'] = pd.to_datetime(
         ch_df['timestamp'], utc=True, errors='coerce'
-    ).dt.normalize()
+    ).dt.date
     ch_df['published_at'] = pd.to_datetime(
         ch_df['published_at'], utc=True, errors='coerce'
-    ).dt.normalize()
+    ).dt.date
 
     # ---------- 롱폼 영상 필터링 ----------
     video_df = ch_df[ch_df['is_short'] == False].copy()
@@ -77,35 +77,21 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
         .sort_values('timestamp')
     )
 
-    # ---------- subs_per_view 계산 ----------
-    subs_per_view_list = []
-    for i in range(1, len(subs_df)):
-        st0 = subs_df.iloc[i-1]['timestamp']
-        st1 = subs_df.iloc[i]['timestamp']
-        gain = (
-            subs_df.iloc[i]['subscriber_count'] -
-            subs_df.iloc[i-1]['subscriber_count']
-        )
-        period_views = views_diff.loc[
-            :, (views_diff.columns > st0) & (views_diff.columns <= st1)
-        ].sum().sum()
-        if gain > 0 and period_views > 0:
-            subs_per_view_list.append(gain / period_views)
-    if subs_per_view_list:
-        subs_per_view = np.mean(subs_per_view_list)
+    # ---------- 실제 구독자 변화량(subs_diff) 계산 ----------
+    if not subs_df.empty:
+        subs_diff = subs_df['subscriber_count'].iloc[-1] - subs_df['subscriber_count'].iloc[0]
     else:
-        subs_diff = (
-            subs_df['subscriber_count'].iloc[-1] -
-            subs_df['subscriber_count'].iloc[0]
-        ) if not subs_df.empty else 0
-        total_views_all = views_diff.sum().sum()
-        subs_per_view = (
-            subs_diff / total_views_all
-            if total_views_all > 0 else 0
-        )
+        subs_diff = 0
 
-    # ---------- 일별 추정 구독자 증가량 ----------
-    daily_estimated_subs = views_diff.sum(axis=0) * subs_per_view
+    # ---------- 조회수 변화량 합계로 날짜별 구독자 분배 ----------
+    date_totals = views_diff.sum(axis=0)  # 각 날짜별 조회수 변화 합
+    sum_views = date_totals.sum()         # 전체 구간의 총 조회수 변화량
+    if sum_views > 0:
+        daily_estimated_subs = date_totals / sum_views * subs_diff
+    else:
+        daily_estimated_subs = date_totals * 0
+
+    #daily_estimated_subs.to_frame("daily_estimated_subs").to_csv("data/daily_estimated_subs.csv")
 
     # ---------- 영상별 구독자 분배 ----------
     est_subs_by_video = views_diff.copy()
@@ -118,15 +104,8 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
         else:
             est_subs_by_video[day] = 0
     est_subs_by_video_total = est_subs_by_video.sum(axis=1)
-
-    # ---------- 전체 구독자 증가량 스케일링 ----------
-    subs_diff = (
-        subs_df['subscriber_count'].iloc[-1] -
-        subs_df['subscriber_count'].iloc[0]
-    ) if not subs_df.empty else 0
-    total_est = est_subs_by_video_total.sum()
-    if total_est > 0:
-        est_subs_by_video_total *= subs_diff / total_est
+    #est_subs_by_video.to_csv("data/est_subs_by_video.csv")
+    #est_subs_by_video_total.to_frame("est_subs_by_video_total").to_csv("data/est_subs_by_video_total.csv")
 
     # ---------- Gain Index: estimated_subs Min-Max 정규화 ----------
     es = est_subs_by_video_total
@@ -142,7 +121,5 @@ def compute_gain_score(ch_df: pd.DataFrame, days: int = 14) -> pd.DataFrame:
         'estimated_subs': est_subs_by_video_total,
         'gain_score2': gain_score1
     }).reset_index(drop=True)
-    result_df = result_df.replace(0, np.nan)
-    result_df = result_df.fillna("N/A")
 
     return result_df

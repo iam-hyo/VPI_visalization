@@ -109,15 +109,9 @@ def render_video_card(
                     # 값이 0일 때도 보여주려면 pd.isna(val)만 체크 (0도 허용)
                     return float_fmt.format(val) + suffix
                 return "N/A" + suffix
-
-            # 예시 row에서 값 추출
-            gain_val = row.get('gain_score2', None)
-            est_val = row.get('estimated_subs', None)
-            ret_val = row.get('retention_score', None)
-
-            st.metric(label="Gain index", value=safe_metric(gain_val, "{:.2f}"))
-            st.metric(label='추정 구독자 증분', value=safe_metric(est_val, "{:.1f}", "명"))
-            st.metric(label="Retention index", value=safe_metric(ret_val, "{:.2f}"))
+            st.metric(label="Gain index", value=safe_metric(row.get('gain_score2')))
+            st.metric(label='추정 구독자 기여', value=safe_metric(row.get('estimated_subs'), "{:.1f}", "명"))
+            st.metric(label="Retention index", value=safe_metric(row.get('retention_score')))
 
         with index2:
             st.markdown(f"""
