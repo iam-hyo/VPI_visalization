@@ -4,8 +4,8 @@ import pandas as pd
 import datetime, requests, base64
 
 from utils.apply_basic_index import compute_gain_score
-from utils.apply_hyojun_index import compute_video_gain_scores
-from utils.apply_hyojun_sub import (initial_batch, incremental_update, SUBS_FILE)
+from utils.conversion_Index.apply_hyojun_index import compute_video_gain_scores
+from utils.conversion_Index.apply_hyojun_sub import (initial_batch, incremental_update, SUBS_FILE)
 from utils.apply_regression_index import regression_score
 from utils.metrics import (get_subscriber_metrics, avg_views, avg_view_by_days_since_published)
 
@@ -139,11 +139,8 @@ def main():
         st.write(f":white_check_mark: Channel {channel_id} subs_contrib already updated today.")
 
     # CSV에서 갱신된 subs_contrib 불러오기
-    subs_df = pd.read_csv(SUBS_FILE)                          # 전체 채널 subs
+    subs_df = pd.read_csv(SUBS_FILE)             # 전체 채널 # columns: video_id, subs_contrib
     subs_df_ch = subs_df[subs_df["channel_id"] == channel_id]
-
-    # 1.5) 갱신된 subs_contrib.csv 불러오기
-    subs_df = pd.read_csv(SUBS_FILE)  # columns: video_id, subs_contrib
 
 
     # 3) 기본이 계산
