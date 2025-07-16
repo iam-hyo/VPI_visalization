@@ -7,8 +7,7 @@ from utils.apply_basic_index import compute_gain_score
 from utils.conversion_Index.apply_hyojun_index import compute_video_gain_scores
 from utils.conversion_Index.apply_hyojun_sub import (initial_batch, incremental_update, SUBS_FILE)
 from utils.apply_regression_index import regression_score
-from utils.metrics import (get_subscriber_metrics, avg_views, avg_view_by_days_since_published)
-
+from utils.metrics import (get_subscriber_metrics, avg_view_by_days_since_published)
 from utils.supabase.get_data import fetch_channel, get_channel_video_snapshots, fetch_channel_snapshots
 from components.channel_detail.channel_nameCard import render_name_card
 from components.channel_detail.charts import render_avg_views_table, render_avg_views_line_chart, render_estimated_subscribers_chart
@@ -33,6 +32,8 @@ def main():
     # channel_id | video_id | title | published_at | is_short | thumbnail_url | timestamp | subscriber_count | day_since_pub | comment_count | like_count | view_count
     
     ch_snap = fetch_channel_snapshots(channel_id).sort_values("collected_at")
+    # ch_snap["collected_at"] = pd.to_datetime(ch_snap["collected_at"], utc=True, format='mixed').dt.date
+    # ch_snap.to_csv("data/temp.csv", index=False)
     # channel_id | collected_at | subscriber_count | total_view_count | video_count
 
     video_count = ch_snap.iloc[-1]["video_count"]

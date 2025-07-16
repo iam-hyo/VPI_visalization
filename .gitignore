@@ -1,4 +1,7 @@
 venv
 __pycache__/
+
+# temp data for debugging
+data/api_sub_data.csv
+data/daily_view_and_sub.csv
 data/temp.csv
-data/daily.csv

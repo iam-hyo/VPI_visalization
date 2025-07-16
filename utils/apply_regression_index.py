@@ -5,9 +5,15 @@ from scipy.optimize import nnls
 
 def regression_score(
     ch_df: pd.DataFrame,
-    days: int = 14,
+    days: int = 14
 ):
+    long_df, grouped_views, sub_scrap = preprocess_channel_data(ch_df)
+    merged_df, view_cols = estimate_daily_subs(grouped_views, sub_scrap)
+    regression_results, spread_change_df = run_regression_analysis(long_df, merged_df, view_cols, days)
+    return regression_results, spread_change_df
 
+# Data preprocessing
+def preprocess_channel_data(ch_df: pd.DataFrame):
     # get subscriber info
     ch_df = ch_df[ch_df['thumbnail_url'].notna() & (ch_df['thumbnail_url'] != '')]
     sub_scrap = ch_df[['timestamp', 'subscriber_count']].copy()
@@ -15,8 +21,9 @@ def regression_score(
     sub_scrap = sub_scrap.groupby('Date', as_index=False)['subscriber_count'].max()
     sub_scrap["Daily Subscribers"] = sub_scrap["subscriber_count"].diff().fillna(0).astype(int)
     sub_scrap["isChange"] = sub_scrap["Daily Subscribers"] != 0
-    # use this line to check
-    sub_scrap.to_csv("data/daily.csv", index=False)
+
+    # Subscriber data from youtube api
+    sub_scrap.to_csv("data/api_sub_data.csv", index=False)
 
     # Pivot cumulative views (timestamp × video_id)
     long_df = ch_df[ch_df['is_short'] == False].copy()
@@ -29,23 +36,15 @@ def regression_score(
         aggfunc="first"
     ).fillna(0).astype(int)
 
-    ## only for 0 error, delete after corrected=============
-    # Ensure datetime index
+    # for 0 error in views
     pivot_df.index = pd.to_datetime(pivot_df.index)
-
-    # Shifted previous values
     prev = pivot_df.shift(1)
-
-    # Compute raw diff
     diff = pivot_df - prev
-
-    # Make diff = 0 if either prev or curr is 0
     diff[(pivot_df == 0) | (prev == 0)] = 0
     diff[diff < 0] = 0
-    ## =============================
 
     # Calculate daily view counts
-    #daily_views_df = pivot_df.diff().fillna(0).clip(lower=0).astype(int)
+    # daily_views_df = pivot_df.diff().fillna(0).clip(lower=0).astype(int)
     daily_views_df = diff.fillna(0).clip(lower=0).astype(int) #replace it to upper line after corrected
     daily_views_df.index = pd.to_datetime(daily_views_df.index)
     daily_views_df["Date"] = daily_views_df.index.date
@@ -55,18 +54,17 @@ def regression_score(
     grouped_views["Day"] = range(1, len(grouped_views) + 1)
     grouped_views.reset_index(inplace=True)
 
+    return long_df, grouped_views, sub_scrap
+
+# Estimate Daily Subscriber Count
+def estimate_daily_subs(grouped_views, sub_scrap):
     grouped_views["Date"] = pd.to_datetime(grouped_views["Date"])
     sub_scrap["Date"] = pd.to_datetime(sub_scrap["Date"])
-    # erase random after getting daily sub correctly
-    # grouped_views["Daily Subscribers"] = daily_subs + np.random.normal(0, 0.5, size=len(grouped_views))
-
-    # Merge sub info into grouped_views
     merged_df = grouped_views.merge(
         sub_scrap[["Date", "Daily Subscribers", "isChange"]],
         on="Date",
         how="left"
     )
-
     merged_df["Spread Change"] = 0.0
     view_cols = [col for col in merged_df.columns if
                  col not in ["Date", "Day", "Daily Subscribers", "isChange", "Spread Change"]]
@@ -99,39 +97,36 @@ def regression_score(
             else:
                 merged_df.loc[tail_idx, "Spread Change"] = spread_val
 
-    # Fill beginning if needed
+    # Before first isChange=True → extend first spread
     first_nonzero_idx = merged_df[merged_df["Spread Change"] > 0].index
     if merged_df.loc[0, "isChange"]:
         merged_df.loc[0, "Spread Change"] = merged_df.loc[0, "Daily Subscribers"]
-    elif len(first_nonzero_idx) > 0 :
+    elif len(first_nonzero_idx) > 0:
         first_idx = first_nonzero_idx[0]
         fill_value = merged_df.loc[first_idx, "Spread Change"]
-        # Rows before this index
         fill_range = merged_df.loc[:first_idx - 1]
-        # Check if sum exceeds first Daily Subscribers (isChange == True)
         first_sub_idx = merged_df[merged_df["isChange"] == True].index
         if len(first_sub_idx) > 0:
             target_idx = first_sub_idx[first_sub_idx >= first_idx]
             if len(target_idx) > 0:
                 daily_subs = merged_df.loc[target_idx[0], "Daily Subscribers"]
                 if fill_value * len(fill_range) > daily_subs:
-                    # Divide evenly
                     spread_val = daily_subs / len(fill_range)
                 else:
                     spread_val = fill_value
-                # Apply the spread
                 merged_df.loc[:first_idx - 1, "Spread Change"] = spread_val
 
     merged_df["Day"] = range(1, len(merged_df) + 1)
+    # Daily View, Sub check
+    merged_df.to_csv("data/daily_view_and_sub.csv", index=False)
+
+    return merged_df, view_cols
+
+# Regression and Index Estimation
+def run_regression_analysis(long_df, merged_df, view_cols, days=14):
     df_filtered = merged_df.iloc[-days:]
-
-    # use this line to check data
-    df_filtered.to_csv("data/temp.csv", index=False)
-
-    # Prepare data for regression
-    X = df_filtered.drop(columns=["Date", "Day", "Daily Subscribers", "isChange", "Spread Change"])
+    X = df_filtered[view_cols]
     y = df_filtered["Spread Change"]
-
     X_np = X.to_numpy()
     y_np = y.to_numpy()
 
@@ -173,6 +168,7 @@ def regression_score(
         "βᵢ / β_mean": gain_betas,
         "regression_subs_contrib": normalized_betas * y.sum()
     })
+
     regression_results = regression_results.astype(object)
     regression_results["βᵢ / β_mean"] = regression_results["βᵢ / β_mean"].apply(
         lambda x: "N/A" if pd.isna(x) else round(x, 2)
@@ -183,4 +179,5 @@ def regression_score(
     regression_results = regression_results.merge(retention_index_df, on="video_id", how="left")
 
     spread_change_df = merged_df[["Date", "Spread Change"]].copy()
+
     return regression_results, spread_change_df
