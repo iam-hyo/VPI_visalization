@@ -5,3 +5,6 @@ __pycache__/
 data/api_sub_data.csv
 data/daily_view_and_sub.csv
 data/temp.csv
+data/pivot.csv
+data/daily_views.csv
+data/filtered_data.csv
