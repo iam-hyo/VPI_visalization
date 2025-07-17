@@ -112,7 +112,7 @@ def render_video_card(
                     return float_fmt.format(val) + suffix
                 return "N/A" + suffix
             st.metric(label="Gain index", value=safe_metric(row.get('gain_score2')))
-            st.metric(label='추정 구독자 기여', value=safe_metric(row.get('estimated_subs'), "{:.1f}", "명"))
+            st.metric(label='추정 구독자 증분', value=safe_metric(row.get('estimated_subs'), "{:.1f}", "명"))
             st.metric(label="Retention index", value=safe_metric(row.get('retention_score')))
 
         with index2:
