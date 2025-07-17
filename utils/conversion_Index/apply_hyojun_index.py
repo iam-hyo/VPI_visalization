@@ -220,8 +220,10 @@ def compute_video_gain_scores(
     videos = channel_df[['video_id', 'is_short']].drop_duplicates('video_id')
     result = videos.copy()
     result['gain_score'] = result['video_id'].map(gain_scores.to_dict())
-    mean_gain = result['gain_score'].mean() + 1 # 평균 Gain Score에 1를 더해 정규화
-    result['gain_score'] = result['gain_score'] / mean_gain
+    # st.dataframe(result, use_container_width=True)
+    filtered_gain = result.loc[result['gain_score'] > 0, 'gain_score']
+    mean_gain = filtered_gain.mean() + 0.1 if not filtered_gain.empty else 1  # fallback: 그냥 1
+    result['gain_score'] = result['gain_score'] / mean_gain + 0.1
     result.loc[result['is_short'], 'gain_score'] = None
     # st.write("[DEBUG] compute_video_gain -> result sample:", result.head())
     return result[['video_id', 'gain_score']]
