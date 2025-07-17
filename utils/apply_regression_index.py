@@ -2,22 +2,23 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import nnls
 # from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
 
 def regression_score(
     ch_df: pd.DataFrame,
+    ch_snap: pd.DataFrame,
     days: int = 14
 ):
-    long_df, grouped_views, sub_scrap = preprocess_channel_data(ch_df)
+    long_df, grouped_views, sub_scrap = preprocess_channel_data(ch_df, ch_snap)
     merged_df, view_cols = estimate_daily_subs(grouped_views, sub_scrap)
     regression_results, spread_change_df = run_regression_analysis(long_df, merged_df, view_cols, days)
     return regression_results, spread_change_df
 
 # Data preprocessing
-def preprocess_channel_data(ch_df: pd.DataFrame):
+def preprocess_channel_data(ch_df: pd.DataFrame, ch_snap: pd.DataFrame):
     # get subscriber info
-    ch_df = ch_df[ch_df['thumbnail_url'].notna() & (ch_df['thumbnail_url'] != '')]
-    sub_scrap = ch_df[['timestamp', 'subscriber_count']].copy()
-    sub_scrap['Date'] = pd.to_datetime(sub_scrap['timestamp']).dt.date
+    sub_scrap = ch_snap[['collected_at', 'subscriber_count']].copy()
+    sub_scrap['Date'] = pd.to_datetime(sub_scrap['collected_at'], format='mixed').dt.date
     sub_scrap = sub_scrap.groupby('Date', as_index=False)['subscriber_count'].max()
     sub_scrap["Daily Subscribers"] = sub_scrap["subscriber_count"].diff().fillna(0).astype(int)
     sub_scrap["isChange"] = sub_scrap["Daily Subscribers"] != 0
@@ -26,6 +27,7 @@ def preprocess_channel_data(ch_df: pd.DataFrame):
     sub_scrap.to_csv("data/api_sub_data.csv", index=False)
 
     # Pivot cumulative views (timestamp × video_id)
+    ch_df = ch_df[ch_df['thumbnail_url'].notna() & (ch_df['thumbnail_url'] != '')]
     long_df = ch_df[ch_df['is_short'] == False].copy()
     long_df["timestamp"] = pd.to_datetime(long_df["timestamp"], utc=True)
     long_df["published_at"] = pd.to_datetime(long_df["published_at"], utc=True)
@@ -34,18 +36,18 @@ def preprocess_channel_data(ch_df: pd.DataFrame):
         columns="video_id",
         values="view_count",
         aggfunc="first"
-    ).fillna(0).astype(int)
-
-    # for 0 error in views
-    pivot_df.index = pd.to_datetime(pivot_df.index)
-    prev = pivot_df.shift(1)
-    diff = pivot_df - prev
-    diff[(pivot_df == 0) | (prev == 0)] = 0
-    diff[diff < 0] = 0
+    ).sort_index()
+    pivot_df = pivot_df.ffill()  # forward-fill missing values
+    pivot_df = pivot_df.fillna(0)  # fill any remaining NaNs
+    if pivot_df.isna().sum().sum() > 0:
+        print("⚠️ NaNs still present before casting to int")
+        print(pivot_df[pivot_df.isna().any(axis=1)])
+    pivot_df = pivot_df.astype(int)
+    pivot_df = merge_quote_columns(pivot_df)
+    pivot_df.to_csv("data/pivot.csv", index=False)
 
     # Calculate daily view counts
-    # daily_views_df = pivot_df.diff().fillna(0).clip(lower=0).astype(int)
-    daily_views_df = diff.fillna(0).clip(lower=0).astype(int) #replace it to upper line after corrected
+    daily_views_df = pivot_df.diff().fillna(0).clip(lower=0).astype(int)
     daily_views_df.index = pd.to_datetime(daily_views_df.index)
     daily_views_df["Date"] = daily_views_df.index.date
 
@@ -53,6 +55,7 @@ def preprocess_channel_data(ch_df: pd.DataFrame):
     grouped_views = daily_views_df.groupby("Date").sum()
     grouped_views["Day"] = range(1, len(grouped_views) + 1)
     grouped_views.reset_index(inplace=True)
+    grouped_views.to_csv("data/daily_views.csv", index=False)
 
     return long_df, grouped_views, sub_scrap
 
@@ -127,6 +130,7 @@ def run_regression_analysis(long_df, merged_df, view_cols, days=14):
     df_filtered = merged_df.iloc[-days:]
     X = df_filtered[view_cols]
     y = df_filtered["Spread Change"]
+    df_filtered.to_csv("data/filtered_data.csv", index=False)
     X_np = X.to_numpy()
     y_np = y.to_numpy()
 
@@ -135,7 +139,10 @@ def run_regression_analysis(long_df, merged_df, view_cols, days=14):
     # model.fit(X, y)
     # raw_betas = model.coef_
     all_zero_mask = (X_np == 0).all(axis=0)
-    raw_betas, _ = nnls(X_np, y_np)
+    # raw_betas, _ = nnls(X_np, y_np)
+    model = Ridge(alpha=0.01, positive=True)
+    model.fit(X_np, y_np)
+    raw_betas = model.coef_
     raw_betas = np.where(all_zero_mask, np.nan, raw_betas)
 
     beta_total = np.nansum(raw_betas)
@@ -181,3 +188,24 @@ def run_regression_analysis(long_df, merged_df, view_cols, days=14):
     spread_change_df = merged_df[["Date", "Spread Change"]].copy()
 
     return regression_results, spread_change_df
+
+def merge_quote_columns(df):
+    columns = df.columns.tolist()
+    merged_df = df.copy()
+
+    for col in columns:
+        # Check for leading single quote
+        if col.startswith("'"):
+            clean_col = col.strip("'")
+            if clean_col in df.columns:
+                # Move values only when the clean_col value is 0
+                to_move = (merged_df[clean_col] == 0) & (merged_df[col] != 0)
+                merged_df.loc[to_move, clean_col] = merged_df.loc[to_move, col]
+
+                # Drop the quote version
+                merged_df.drop(columns=[col], inplace=True)
+            else:
+                # Just rename if clean version doesn't exist
+                merged_df = merged_df.rename(columns={col: clean_col})
+
+    return merged_df

@@ -56,6 +56,7 @@ def main():
     # 반환값2: DataFrame with columns ['Date','Spread Change']
     coefficient_df, spread_change_df = regression_score(
         ch_df       = ch_df,
+        ch_snap     = ch_snap,
         days        = 30
     )
 
@@ -148,7 +149,7 @@ def main():
     final_score_df = compute_gain_score(
         ch_df=ch_df,
         ch_snap=ch_snap,
-        days=30
+        days=14
     )
     # ──────────────────────────────────────────────────────────
 
