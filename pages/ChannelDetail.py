@@ -39,7 +39,7 @@ def main():
 
     video_count = ch_snap.iloc[-1]["video_count"]
     total_view = ch_snap.iloc[-1]["total_view_count"]
-    subs_diff, avg_daily_increase, latest_subs = get_subscriber_metrics(ch_snap, 30)
+    subs_diff, avg_daily_increase, latest_subs, initial_date = get_subscriber_metrics(ch_snap, 30)
 
     #==========================UI랜더링=========================
     render_name_card(channel_meta)
@@ -47,6 +47,7 @@ def main():
         latest_subs=latest_subs,
         video_count=video_count,
         total_view=total_view,
+        initial_date=initial_date,
         subs_diff=subs_diff,
         avg_daily_increase=avg_daily_increase,
     )

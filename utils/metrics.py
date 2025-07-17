@@ -62,12 +62,12 @@ def format_korean_count(n: int) -> str:
     parts = []
     # 1억 단위
     if n >= 100_000_000:
-        eok = n // 100_000_000
+        eok = int(n // 100_000_000)
         parts.append(f"{eok}억")
         n %= 100_000_000
     # 만 단위
     if n >= 10_000:
-        man = n // 10_000
+        man = int(n // 10_000)
         parts.append(f"{man}만")
         n %= 10_000
     # 나머지(1만 미만)는 생략하거나, 필요하면 표시
@@ -94,6 +94,7 @@ def get_subscriber_metrics(ch_snap: pd.DataFrame, days: int = 30): # days일 이
     # 3) 초기 / 최신 구독자 수
     initial_subs = recent['subscriber_count'].iloc[0]
     latest_subs  = recent['subscriber_count'].iloc[-1]
+    initial_date = recent['collected_at'].iloc[0]
     
     # 4) 증가량
     subs_diff = latest_subs - initial_subs
@@ -104,7 +105,7 @@ def get_subscriber_metrics(ch_snap: pd.DataFrame, days: int = 30): # days일 이
     
     # 7) 일평균 구독자 증가량
     avg_daily_increase = subs_diff / actual_days
-    return subs_diff, avg_daily_increase, latest_subs
+    return subs_diff, avg_daily_increase, latest_subs, initial_date
 
 def filter_shorts(df: pd.DataFrame) -> pd.DataFrame:
     return df[df['is_short'] == True]

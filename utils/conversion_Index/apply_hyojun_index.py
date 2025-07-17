@@ -166,12 +166,12 @@ def compute_channel_gain_index(
 
     # 실제 전환율 r_d
     actual_rate = delta_subs / total_views_d if total_views_d > 0 else 0.0
-    # st.write("[DEBUG] channel_gain -> actual_rate:", float(actual_rate))
-    # st.write("[DEBUG] channel_gain -> expected_rate:", float(r0))
+    st.write("[DEBUG] channel_gain -> actual_rate:", float(actual_rate))
+    st.write("[DEBUG] channel_gain -> expected_rate:", float(r0))
 
     # GainIndex 계산
     gain_index = actual_rate / r0 if r0 > 0 else 0.0
-    # st.write("[DEBUG] channel_gain -> gain_index:", float(gain_index))
+    st.write("[DEBUG] channel_gain -> gain_index:", float(gain_index))
     return gain_index
 
 
@@ -193,7 +193,7 @@ def compute_video_gain_scores(
 
     # 2) 롱폼 필터링 및 r0 계산
     ch_long_df = ch_df[ch_df['is_short'] == False].copy()
-    r0_baseline = (end_subs / total_view) / np.log(end_subs * 0.5 + c) if total_view > 0 else 0.0
+    r0_baseline = (end_subs / total_view) if total_view > 0 else 0.0
     # st.write("[DEBUG] compute_video_gain -> r0_baseline:", float(r0_baseline))
 
     # 3) GainIndex
@@ -203,6 +203,8 @@ def compute_video_gain_scores(
         days=days,
         estimated_daily_subscribers=estimated_daily_subscribers
     )
+
+
     
     # 4) 영상별 조회수 변화량 및 가중치
     delta_views = aggregate_views_within_days(ch_long_df, days)
@@ -218,6 +220,8 @@ def compute_video_gain_scores(
     videos = channel_df[['video_id', 'is_short']].drop_duplicates('video_id')
     result = videos.copy()
     result['gain_score'] = result['video_id'].map(gain_scores.to_dict())
+    mean_gain = result['gain_score'].mean() + 1 # 평균 Gain Score에 1를 더해 정규화
+    result['gain_score'] = result['gain_score'] / mean_gain
     result.loc[result['is_short'], 'gain_score'] = None
     # st.write("[DEBUG] compute_video_gain -> result sample:", result.head())
     return result[['video_id', 'gain_score']]
