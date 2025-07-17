@@ -149,7 +149,7 @@ def main():
     final_score_df = compute_gain_score(
         ch_df=ch_df,
         ch_snap=ch_snap,
-        days=14
+        days=30
     )
     # ──────────────────────────────────────────────────────────
 
