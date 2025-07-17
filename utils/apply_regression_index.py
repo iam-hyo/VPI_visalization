@@ -140,7 +140,7 @@ def run_regression_analysis(long_df, merged_df, view_cols, days=14):
     # raw_betas = model.coef_
     all_zero_mask = (X_np == 0).all(axis=0)
     # raw_betas, _ = nnls(X_np, y_np)
-    model = Ridge(alpha=0.01, positive=True)
+    model = Ridge(alpha=0.01, positive=True, random_state=42)
     model.fit(X_np, y_np)
     raw_betas = model.coef_
     raw_betas = np.where(all_zero_mask, np.nan, raw_betas)
