@@ -87,8 +87,10 @@ def render_video_card(
                 ">전환율 기반</span>
                 """, unsafe_allow_html=True)
             retain = row['view_count'] / row['expected_views'] if row['expected_views'] else "-"
-            subs_contrib = float(row["subs_contrib"])   
-            st.metric("Gain Index", f"{row.get('gain_score', 0):.2f}")
+            subs_contrib = float(row["subs_contrib"])
+            gain = row.get('gain_score')
+            gain_display = "N/A" if not gain else f"{gain:.2f}"
+            st.metric("Gain Index", f"{gain_display}")
             st.metric("추정 구독자 증분", f"{subs_contrib:.1f}명")     
             st.metric("Retention index", f"{retain:.2f}" if isinstance(retain, (int, float)) else "-")
 

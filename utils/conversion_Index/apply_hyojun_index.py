@@ -99,12 +99,12 @@ def aggregate_views_within_days(
         df_copy[df_copy['timestamp'] >= df_copy['published_at']]
         .sort_values(['video_id', 'timestamp'])
         .groupby('video_id')
-        .first()
+        .first() # 그룹 별 첫번재 row 선택
     )
 
     # 종료 스냅샷 선택
     def pick_end_snap(group: pd.DataFrame) -> pd.Series:
-        pub_time = group['published_at'].iloc[0]
+        pub_time = group['published_at'].iloc[0]        # 업로드 일자
         cutoff = pub_time + timedelta(days=days)
         snaps_after = group[group['timestamp'] >= group['published_at']]
 
@@ -117,7 +117,7 @@ def aggregate_views_within_days(
         return snaps_after.sort_values('timestamp').iloc[-1]
 
     end_snaps = df_copy.groupby('video_id').apply(pick_end_snap, include_groups=False)
-    delta_views = end_snaps['view_count'] - first_snaps['view_count']
+    delta_views = end_snaps['view_count'] - first_snaps['view_count']       # 조회수 변화량 계산
     # st.write("[DEBUG] aggregate_views -> sum delta_views:", float(delta_views.sum()))
     return delta_views.rename('delta_views')
 

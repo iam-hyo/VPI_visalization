@@ -152,7 +152,7 @@ def avg_view_by_days_since_published(
     )
 
     # all_days 생성 & merge
-    all_days = pd.DataFrame({'day': range(1, max_days+1)})
+    all_days = pd.DataFrame({'day': range(0, max_days)})
     result = all_days.merge(grp2, on='day', how='left')
 
     # 누락값 보간 & 앞뒤 채우기

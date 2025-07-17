@@ -1,11 +1,10 @@
 # pages/2_ChannelDetail.py
 import streamlit as st
 import pandas as pd
-import datetime, requests, base64
+import requests, base64
 
 from utils.apply_basic_index import compute_gain_score
 from utils.conversion_Index.apply_hyojun_index import compute_video_gain_scores
-from utils.conversion_Index.apply_hyojun_sub import (initial_batch, incremental_update, SUBS_FILE)
 from utils.apply_regression_index import regression_score
 from utils.metrics import (get_subscriber_metrics, avg_view_by_days_since_published)
 from utils.supabase.get_data import fetch_channel, get_channel_video_snapshots, fetch_channel_snapshots
@@ -13,6 +12,8 @@ from components.channel_detail.channel_nameCard import render_name_card
 from components.channel_detail.charts import render_avg_views_table, render_avg_views_line_chart, render_estimated_subscribers_chart
 from components.channel_detail.video_card_st import render_video_card
 from components.channel_detail.ch_statusb_bar import render_status_bar
+from utils.conversion_Index.subscriber_contrib_pipeline import run_pipeline
+from utils.supabase.fetch_vid_metrics import fetch_subs_contrib
 
 def img_url_to_base64(url):
     response = requests.get(url)
@@ -72,7 +73,7 @@ def main():
 
     col1, col2 = st.columns(2)
     with col1: # 롱폼
-        long_metrics, result_L = avg_view_by_days_since_published(
+        daily_cumulative_view_count_f_table, daily_cumulative_view_count_df_long = avg_view_by_days_since_published(
             ch_df,
             max_days    = 30,
             is_short    = False
@@ -89,8 +90,8 @@ def main():
                 ">Long-form</span> 공개 이후 일자별 기대 조회수
                 """, unsafe_allow_html=True)
         # st.metric(label="Long-form 평균 조회수", value=f"{int(avg_views(ch_df, 10, False)):,}")
-        render_avg_views_table(long_metrics)
-        render_avg_views_line_chart(result_L, "")
+        render_avg_views_table(daily_cumulative_view_count_f_table)
+        render_avg_views_line_chart(daily_cumulative_view_count_df_long, "")
         
     with col2:
         # 숏폼
@@ -126,23 +127,15 @@ def main():
         days         = 14
     )
 
-    # 1.5) subscriber_contrib 계산 (채널별 last_run_date 로 관리)
-    today_date = datetime.date.today()
-    today_str = today_date.isoformat()
-    last_run = channel_meta.get("last_run_date")
-
-    if last_run != today_str:
-        if last_run is None:
-            initial_batch(ch_df, result_L, avg_daily_increase)      # 초기 계산 with external avg_daily_increase
-        else:
-            st.write(f"[DEBUG] Performing incremental_update for {channel_id}")
-            incremental_update(ch_df, result_L)          # 일일 업데이트
-    else:
-        st.write(f":white_check_mark: Channel {channel_id} subs_contrib already updated today.")
-
-    # CSV에서 갱신된 subs_contrib 불러오기
-    subs_df = pd.read_csv(SUBS_FILE)             # 전체 채널 # columns: video_id, subs_contrib
-    subs_df_ch = subs_df[subs_df["channel_id"] == channel_id]
+    # 1.5) 구독자 기여도 계산
+    run_pipeline(
+        ch_df,
+        daily_cumulative_view_count_df_long,
+        channel_id,
+        estimated_daily_subscribers,
+        20
+    )
+    subs_df_ch = fetch_subs_contrib(channel_id) # 계산된 subs_contrib 가져오기
 
 
     # 3) 기본이 계산
@@ -225,7 +218,7 @@ def main():
                 update_video = update_video.sort_values('gain_score', ascending=False)
             
             #여기에 칼럼 업데이트-------------------------------------------------------
-            map_L = result_L.set_index('day')['cumulative_view_count'].to_dict()
+            map_L = daily_cumulative_view_count_df_long.set_index('day')['cumulative_view_count'].to_dict()
             map_S = result_S.set_index('day')['cumulative_view_count'].to_dict()
             # 2) update_video DataFrame 준비
 
@@ -253,7 +246,7 @@ def main():
                 # 해당 영상 전체 스냅샷
                 snapshot_df = ch_df[ch_df["video_id"] == vid].copy()
                 # 올바른 metrics_df 선택
-                metrics_df  = result_S if row["is_short"] else result_L
+                metrics_df  = result_S if row["is_short"] else daily_cumulative_view_count_df_long
 
                 render_video_card(
                     row=           row,
