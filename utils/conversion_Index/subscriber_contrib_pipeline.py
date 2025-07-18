@@ -28,8 +28,8 @@ def run_pipeline(
     - days: 분석 기간 (일)
     """
     ch_long_df = ch_df[ch_df['is_short'] == False].copy()
-    # last_calc_date = get_last_calculated_at(channel_id)
-    last_calc_date = get_last_calculated_at(channel_id) - timedelta(days=1)
+    last_calc_date = get_last_calculated_at(channel_id)
+    # last_calc_date = get_last_calculated_at(channel_id) - timedelta(days=1)
 
     today = date.today().isoformat()
     end_dt = ch_long_df['timestamp'].max().date()
