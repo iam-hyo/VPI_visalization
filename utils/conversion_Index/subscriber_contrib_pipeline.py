@@ -27,10 +27,12 @@ def run_pipeline(
     - channel_id: 채널 ID
     - days: 분석 기간 (일)
     """
-    last_calc_date = get_last_calculated_at(channel_id)
-    # last = None
+    ch_long_df = ch_df[ch_df['is_short'] == False].copy()
+    # last_calc_date = get_last_calculated_at(channel_id)
+    last_calc_date = get_last_calculated_at(channel_id) - timedelta(days=1)
+
     today = date.today().isoformat()
-    end_dt = ch_df['timestamp'].max().date()
+    end_dt = ch_long_df['timestamp'].max().date()
     # 0) 처리 대상 기간 필터 및 디버깅
     calc_start_date = last_calc_date + timedelta(days=1) if last_calc_date else end_dt - timedelta(days=days - 1)
 
@@ -50,7 +52,7 @@ def run_pipeline(
     subs_delta = subs.diff().fillna(0)
 
     # 2) 기간 내 일별 view_count 보간 및 증가량 계산
-    daily_views = ensure_daily_views(ch_df, days)
+    daily_views = ensure_daily_views(ch_long_df, days)
     view_deltas = compute_view_increments(daily_views)
     # st.header("Debug: view_deltas 👏👏👏👏")
     # st.dataframe(view_deltas, use_container_width=True)

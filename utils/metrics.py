@@ -166,6 +166,7 @@ def avg_view_by_days_since_published(
             .round(0)
             .astype(int)
         )
+    result['cumulative_view_count'] = np.maximum.accumulate(result['cumulative_view_count']).astype(int)
 
     arr = result['cumulative_view_count']
     result['cumulative_view_count'] = arr.round(0).astype(int)
