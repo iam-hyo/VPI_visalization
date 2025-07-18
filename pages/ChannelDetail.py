@@ -138,7 +138,6 @@ def main():
     )
     subs_df_ch = fetch_subs_contrib(channel_id) # 계산된 subs_contrib 가져오기
 
-
     # 3) 기본이 계산
     final_score_df = compute_gain_score(
         ch_df=ch_df,
@@ -178,7 +177,7 @@ def main():
                 .merge(video_gain_df, on='video_id', how='left')
                 .fillna({'gain_score': 0})     # 계산 누락된 경우 0으로
             )
-
+            
             #5.5) sub_Contrib merge
             update_video = update_video.merge(
                 subs_df_ch[['video_id', 'subs_contrib']],

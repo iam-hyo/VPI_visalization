@@ -5,6 +5,7 @@ from utils.conversion_Index.subscriber_contrib_func import (
     compute_view_increments,
     allocate_subs_contrib
 )
+import time
 from utils.supabase.fetch_vid_metrics import (
     get_last_calculated_at,
     upsert_subs_contrib
@@ -26,14 +27,22 @@ def run_pipeline(
     - channel_id: 채널 ID
     - days: 분석 기간 (일)
     """
-    last = get_last_calculated_at(channel_id)
+    last_calc_date = get_last_calculated_at(channel_id)
     # last = None
     today = date.today().isoformat()
     end_dt = ch_df['timestamp'].max().date()
-    # import streamlit as st
-    # st.write(f"Last calculated at: {last}") 
-    # st.write(f"End date: {today}")
-    if last == today:
+    # 0) 처리 대상 기간 필터 및 디버깅
+    calc_start_date = last_calc_date + timedelta(days=1) if last_calc_date else end_dt - timedelta(days=days - 1)
+
+    import streamlit as st
+    # st.write(f"Last calculated at: {last_calc_date}") 
+    # st.write(f"End date: {end_dt}")
+    # st.write(f"today: {today}")
+    if end_dt <= last_calc_date:
+        message_slot = st.empty()
+        message_slot.success(f"최신 데이터 반영 완료 🚀 {end_dt <= last_calc_date}")
+        time.sleep(15)
+        message_slot.empty()
         return
 
     # 1) 일별 구독자 증분 계산
@@ -48,34 +57,31 @@ def run_pipeline(
     # st.header("Debug: view_deltas 👏👏👏👏")
     # st.dataframe(view_deltas, use_container_width=True)
 
-    # 3) 처리 대상 기간 필터 및 디버깅
-    start_date = last + timedelta(days=1) if last else end_dt - timedelta(days=days - 1)
-
     #디버깅 출력
     # st.subheader("✅ 날짜 타입 점검 및 subs_delta 인덱스 확인")
-    # st.write(f"start_date: {start_date} ({type(start_date)})")
+    # st.write(f"calc_start_date: {calc_start_date} ({type(calc_start_date)})")
     # st.write(f"end_dt: {end_dt} ({type(end_dt)})")
     # st.write(f"subs_delta index dtype: {subs_delta.index.dtype}")
     # st.write(f"subs_delta index preview: {subs_delta.index[:5]}")
 
     # (1) 날짜 역순 방지
-    if start_date > end_dt:
-        # st.warning("🚫 날짜 범위가 잘못되었습니다: start_date > end_dt. 계산을 생략합니다.")
-        # st.write(f"💡 DB 최신 계산일 (last): {last}")
-        # st.write(f"💡 수집된 데이터 최신일 (end_dt): {end_dt}")
-        # st.write(f"➡️ 계산 대상 범위: {start_date} ~ {end_dt}")
-        return
+    # if calc_start_date > end_dt:
+    #     st.warning("🚫 날짜 범위가 잘못되었습니다: start_date > end_dt. 계산을 생략합니다.")
+    #     st.write(f"💡 DB 최신 계산일 (last_calc_date): {last_calc_date}")
+    #     st.write(f"💡 수집된 데이터 최신일 (end_dt): {end_dt}")
+    #     st.write(f"➡️ 계산 대상 범위: {calc_start_date} ~ {end_dt}")
+    #     return
 
     # (2) subs_delta index 타입 보정 (object 또는 timestamp → date)
     if not isinstance(subs_delta.index[0], (pd.Timestamp, date)):
         subs_delta.index = pd.to_datetime(subs_delta.index, errors='coerce')
-    # subs_delta.index = subs_delta.index.map(lambda x: x.date()) # 확실하게 date로 변환
+    
 
     # (4) 슬라이싱
-    mask = (view_deltas['day'] >= start_date) & (view_deltas['day'] <= end_dt)
+    mask = (view_deltas['day'] >= calc_start_date) & (view_deltas['day'] <= end_dt)
     view_deltas = view_deltas.loc[mask]
 
-    subs_delta = subs_delta.loc[start_date:end_dt]
+    subs_delta = subs_delta.loc[calc_start_date:end_dt]
 
     # 최종 결과 확인
     # st.subheader("🎯 Debug: subs_delta 👏👏👏👏")

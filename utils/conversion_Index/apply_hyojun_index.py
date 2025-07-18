@@ -166,12 +166,12 @@ def compute_channel_gain_index(
 
     # 실제 전환율 r_d
     actual_rate = delta_subs / total_views_d if total_views_d > 0 else 0.0
-    st.write("[DEBUG] channel_gain -> actual_rate:", float(actual_rate))
-    st.write("[DEBUG] channel_gain -> expected_rate:", float(r0))
 
     # GainIndex 계산
     gain_index = actual_rate / r0 if r0 > 0 else 0.0
-    st.write("[DEBUG] channel_gain -> gain_index:", float(gain_index))
+    # st.write("[DEBUG] channel_gain -> actual_rate:", float(actual_rate))
+    # st.write("[DEBUG] channel_gain -> expected_rate:", float(r0))
+    # st.write("[DEBUG] channel_gain -> gain_index:", float(gain_index))
     return gain_index
 
 

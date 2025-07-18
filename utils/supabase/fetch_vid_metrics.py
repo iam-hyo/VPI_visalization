@@ -20,14 +20,14 @@ def get_last_calculated_at(channel_id: str) -> date:
 
 
 def fetch_subs_contrib(channel_id: str) -> pd.DataFrame:
-    today = datetime.combine(date.today(), datetime.min.time())
-    tomorrow = today + timedelta(days=1)
+    # today = datetime.combine(date.today(), datetime.min.time())
+    # tomorrow = today + timedelta(days=1)
     resp = (
     supabase.table('video_metrics')
         .select('video_id, subs_contrib')
         .eq('channel_id', channel_id)
-        .gte('calculated_at', today.isoformat())
-        .lt('calculated_at', tomorrow.isoformat())
+        # .gte('calculated_at', today.isoformat()) #Greater Than or Equal (≥) 크거나 같다, 즉 "이 날짜 이후 포함
+        # .lt('calculated_at', tomorrow.isoformat()) #Less Than (<) 작다, 즉  "이전 날짜 미포함"
         .execute()
     )
     return pd.DataFrame(resp.data)
