@@ -41,8 +41,6 @@ def run_pipeline(
     if end_dt <= last_calc_date:
         message_slot = st.empty()
         message_slot.success(f"최신 데이터 반영 완료 🚀 {end_dt <= last_calc_date}")
-        time.sleep(15)
-        message_slot.empty()
         return
 
     # 1) 일별 구독자 증분 계산
